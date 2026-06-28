@@ -6,6 +6,7 @@ import { LIMITS } from '../../core/config'
 import type { Character, EquipmentSlot } from '../../core/types/character'
 import { StatStrip } from '../components/StatStrip'
 import { UnitIcon } from '../components/UnitIcon'
+import { Portrait } from '../components/Portrait'
 
 const SLOT_RU: Record<EquipmentSlot, string> = {
   weapon: 'Оружие',
@@ -190,13 +191,24 @@ function CharacterPanel(p: PanelProps) {
         </Space>
       }
     >
-      <StatStrip stats={ch.baseStats} rating={ch.baseStatRating} />
-      {spec && (
-        <div style={{ marginTop: 8 }}>
-          <Tag color="purple">Склонность: {spec.label}</Tag>
-          <Typography.Text type="secondary">{spec.description}</Typography.Text>
+      <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+        <Portrait
+          id={ch.classId}
+          emoji={ch.iconEmoji}
+          accent={ch.iconAccent}
+          size={104}
+          title={`${ch.name} — ${p.className(ch.classId)}`}
+        />
+        <div style={{ flex: '1 1 220px', minWidth: 220 }}>
+          <StatStrip stats={ch.baseStats} rating={ch.baseStatRating} />
+          {spec && (
+            <div style={{ marginTop: 8 }}>
+              <Tag color="purple">Склонность: {spec.label}</Tag>
+              <Typography.Text type="secondary">{spec.description}</Typography.Text>
+            </div>
+          )}
         </div>
-      )}
+      </div>
 
       <Divider titlePlacement="start" style={{ margin: '12px 0' }}>
         Экипировка

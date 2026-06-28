@@ -24,6 +24,27 @@ interface AtlasDef {
 
 const ATLASES = manifest.atlases as Record<string, AtlasDef>
 
+/**
+ * CSS-срез атласа `(atlas, id)` для фона произвольного контейнера (тайлы поля
+ * боя, баннеры и т.п.). Возвращает `null`, если лист не нарезан или id нет в
+ * листе — вызывающий рисует фолбэк сам. Совпадает с логикой `<Sprite>`.
+ */
+export function atlasSlice(atlasId: string, id: string, size: number): React.CSSProperties | null {
+  const def = ATLASES[atlasId]
+  if (!def || !def.src || !def.ids.includes(id)) return null
+  const idx = def.ids.indexOf(id)
+  const col = idx % def.cols
+  const row = Math.floor(idx / def.cols)
+  const scaleX = size / def.cellW
+  const scaleY = size / def.cellH
+  return {
+    backgroundImage: `url(${def.src})`,
+    backgroundRepeat: 'no-repeat',
+    backgroundPosition: `-${col * def.cellW * scaleX}px -${row * def.cellH * scaleY}px`,
+    backgroundSize: `${def.cols * def.cellW * scaleX}px ${def.rows * def.cellH * scaleY}px`,
+  }
+}
+
 export interface SpriteProps {
   /** Семантический id (statId, kind, classId…). */
   id?: string
@@ -52,7 +73,7 @@ export function Sprite({
 }: SpriteProps) {
   const reg = id ? ICONS[id] : undefined
   const atlasId = atlas ?? reg?.atlas
-  const def = atlasId ? ATLASES[atlasId] : undefined
+  const slice = atlasId && id ? atlasSlice(atlasId, id, size) : null
 
   const base: React.CSSProperties = {
     display: 'inline-flex',
@@ -68,25 +89,8 @@ export function Sprite({
   }
 
   // Нарезанный атлас доступен → рендерим срез.
-  if (def && def.src && id && def.ids.includes(id)) {
-    const idx = def.ids.indexOf(id)
-    const col = idx % def.cols
-    const row = Math.floor(idx / def.cols)
-    const scaleX = size / def.cellW
-    const scaleY = size / def.cellH
-    return (
-      <span
-        className={className}
-        title={title}
-        style={{
-          ...base,
-          backgroundImage: `url(${def.src})`,
-          backgroundRepeat: 'no-repeat',
-          backgroundPosition: `-${col * def.cellW * scaleX}px -${row * def.cellH * scaleY}px`,
-          backgroundSize: `${def.cols * def.cellW * scaleX}px ${def.rows * def.cellH * scaleY}px`,
-        }}
-      />
-    )
+  if (slice) {
+    return <span className={className} title={title} style={{ ...base, ...slice }} />
   }
 
   // Фолбэк-эмодзи в контейнере точного размера.

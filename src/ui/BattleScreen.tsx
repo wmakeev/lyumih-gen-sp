@@ -9,7 +9,8 @@ import { legalMoves, cardTargets, type BattleContext } from '../core/battle/engi
 import type { BattleState, BattleUnit, Cell } from '../core/types/battle'
 import { previewAction, type ActionPreview } from './battle-preview'
 import { UnitIcon } from './components/UnitIcon'
-import { Sprite } from './components/Sprite'
+import { Sprite, atlasSlice } from './components/Sprite'
+import { Portrait } from './components/Portrait'
 
 type Mode = { type: 'move' } | { type: 'basic' } | { type: 'card'; cardId: string } | null
 
@@ -180,9 +181,18 @@ export function BattleScreen() {
                 </Tag>
               </Space>
             }>
-              <div style={{ marginBottom: 8, fontSize: 13 }}>
-                ❤️ {active.hp}/{active.maxHp} · 👟 {active.stats.speed} · ⚡ {active.stats.initiative}
-                {active.stats.critChance > 0 && <> · 🎯 {active.stats.critChance}%</>}
+              <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 8 }}>
+                <Portrait
+                  id={active.classId ?? active.raceId ?? active.archetypeId}
+                  emoji={active.iconEmoji}
+                  accent={active.side === 'player' ? 'var(--mm-side-player-bg)' : 'var(--mm-side-enemy-bg)'}
+                  size={72}
+                  title={active.displayName}
+                />
+                <div style={{ fontSize: 13, lineHeight: 1.6 }}>
+                  ❤️ {active.hp}/{active.maxHp} · 👟 {active.stats.speed} · ⚡ {active.stats.initiative}
+                  {active.stats.critChance > 0 && <> · 🎯 {active.stats.critChance}%</>}
+                </div>
               </div>
               {playerTurn ? (
                 <Space orientation="vertical" style={{ width: '100%' }}>
@@ -369,6 +379,10 @@ function BattleGrid({
 }) {
   const { width, height, terrain } = battle.field
   const isTargetMode = mode?.type === 'basic' || mode?.type === 'card'
+  // Тайлы пола/стены из атласа `tiles` (фолбэк — цвет клетки из CSS, если лист
+  // ещё не нарезан). Размеры одинаковы для всех клеток → считаем срез один раз.
+  const floorTile = atlasSlice('tiles', 'floor', CELL)
+  const wallTile = atlasSlice('tiles', 'wall', CELL)
   const rows = []
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
@@ -393,7 +407,7 @@ function BattleGrid({
         <div
           key={key}
           className={cls.join(' ')}
-          style={{ width: CELL, height: CELL }}
+          style={{ width: CELL, height: CELL, ...(wall ? wallTile : floorTile) }}
           onClick={() => onCellClick(x, y)}
           onMouseEnter={() => onHover({ x, y })}
         >

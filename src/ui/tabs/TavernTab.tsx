@@ -4,6 +4,7 @@ import { Button, Card, Col, Empty, Row, Space, Tag, Typography } from 'antd'
 import { useGame } from '../../state/store'
 import { StatStrip } from '../components/StatStrip'
 import { UnitIcon } from '../components/UnitIcon'
+import { Portrait } from '../components/Portrait'
 
 export function TavernTab() {
   useGame((s) => s.rev)
@@ -39,11 +40,22 @@ export function TavernTab() {
                   }
                 >
                   <Space orientation="vertical" style={{ width: '100%' }} size={6}>
-                    <Space wrap>
-                      <Tag>{cls?.label ?? c.classId}</Tag>
-                      <Tag color="purple">Склонность: ?</Tag>
-                    </Space>
-                    <StatStrip stats={c.baseStats} rating={c.baseStatRating} />
+                    <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                      <Portrait
+                        id={c.classId}
+                        emoji={c.iconEmoji}
+                        accent={c.iconAccent}
+                        size={72}
+                        title={`${c.name} — ${cls?.label ?? c.classId}`}
+                      />
+                      <Space orientation="vertical" size={6} style={{ flex: 1, minWidth: 0 }}>
+                        <Space wrap>
+                          <Tag>{cls?.label ?? c.classId}</Tag>
+                          <Tag color="purple">Склонность: ?</Tag>
+                        </Space>
+                        <StatStrip stats={c.baseStats} rating={c.baseStatRating} />
+                      </Space>
+                    </div>
                     <div>
                       <Typography.Text type="secondary">Стартовая экипировка:</Typography.Text>
                       <Space wrap style={{ display: 'flex', marginTop: 2 }}>
