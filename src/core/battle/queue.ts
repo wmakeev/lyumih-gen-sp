@@ -4,6 +4,7 @@
  */
 
 import type { BattleState, BattleUnit } from '../types/battle'
+import type { StatBlock } from '../types/stats'
 
 export function isDowned(u: BattleUnit): boolean {
   return u.hp <= 0
@@ -13,13 +14,22 @@ export function isAlive(u: BattleUnit): boolean {
   return u.hp > 0
 }
 
+/**
+ * Эффективное значение стата юнита = база + суммарные statMods активных
+ * статус-эффектов (бафы/дебафы карт). Единая точка для боевой математики и
+ * очереди — иначе бафы работают только на инициативу.
+ */
+export function effectiveStat(u: BattleUnit, stat: keyof StatBlock): number {
+  let v = u.stats[stat] ?? 0
+  for (const st of u.statusEffects) {
+    v += st.statMods?.[stat] ?? 0
+  }
+  return v
+}
+
 /** Текущая (effective) инициатива юнита с учётом статусов. */
 export function unitInitiative(u: BattleUnit): number {
-  let init = u.stats.initiative
-  for (const st of u.statusEffects) {
-    init += st.statMods?.initiative ?? 0
-  }
-  return init
+  return effectiveStat(u, 'initiative')
 }
 
 /** Пересчёт очереди раунда: живые, по убыванию инициативы, тай-брейк по id. */

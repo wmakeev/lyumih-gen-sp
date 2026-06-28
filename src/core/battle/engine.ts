@@ -341,7 +341,7 @@ export function useCard(
   card.cooldownLeft = card.cooldownTurns
   card.uses += 1
   if (!card.isBasic) {
-    if (rollLevelUpWithLuck(card.level, ctx.rng)) card.level += 1
+    if (rollLevelUpWithLuck(card.level, ctx.rng, { lucky: caster.luckyCard })) card.level += 1
   }
 
   checkBattleEnd(state)
@@ -413,7 +413,7 @@ export function basicAttack(
   const res = useCard(state, casterId, strike.instanceId, { unitId: targetUnitId }, ctx)
   // L оружия (§16.5): прогресс на оружие — растёт уровень strike-карты (level=itemLevel)
   if (res.ok && strike.weaponInstanceId) {
-    if (rollLevelUpWithLuck(strike.level, ctx.rng)) strike.level += 1
+    if (rollLevelUpWithLuck(strike.level, ctx.rng, { lucky: caster.luckyItem })) strike.level += 1
   }
   return res
 }

@@ -27,6 +27,7 @@ import {
   hasNextBattle,
   currentScenario,
   finalizeBattle,
+  finalizeDefeat,
   hireFromTavern,
   refreshTavern,
   buyItem,
@@ -73,6 +74,7 @@ interface StoreState {
   resetSave: () => void
   setTab: (t: HubTab) => void
   dismissNotice: () => void
+  dismissExcluded: () => void
 
   // персонаж
   selectCharacter: (id: string | null) => void
@@ -122,12 +124,38 @@ function persist(c: CampaignState) {
   saveCampaign(c)
 }
 
+/** Свежий UI-слайс для (пере)старта игры — иначе выбор бойца/отряда/авто-боя
+ * протекает из прошлой кампании в новую. */
+function freshUi(c: CampaignState): UIState {
+  return {
+    tab: 'persona',
+    selectedCharacterId: c.characters[0]?.id ?? null,
+    selectedExpeditionMode: 'campaign-main',
+    squadSelection: [false, false, false, false],
+    selectedBattleUnitId: null,
+    selectedCardId: null,
+    autoBattle: false,
+    excludedNotice: null,
+  }
+}
+
 export const useGame = create<StoreState>((set, get) => {
   const initial = loadCampaign() ?? createNewCampaign(registry, getConfig(), rng)
+
+  // §16.6: при поражении один раз применяем death-rolls/worldPower и запекаем их
+  // в снимок попытки (см. finalizeDefeat) — до того, как игрок выберет retry/abandon.
+  const maybeFinalizeDefeat = (c: CampaignState) => {
+    const b = c.battle
+    if (b && b.phase === 'defeat' && !b.defeatFinalized) {
+      finalizeDefeat(c, registry, getConfig(), rng)
+      b.defeatFinalized = true
+    }
+  }
 
   const commit = (mutator?: () => void) => {
     if (mutator) mutator()
     const c = get().campaign
+    maybeFinalizeDefeat(c)
     persist(c)
     set((s) => ({ rev: s.rev + 1 }))
   }
@@ -136,25 +164,16 @@ export const useGame = create<StoreState>((set, get) => {
     campaign: initial,
     registry,
     rev: 0,
-    ui: {
-      tab: 'persona',
-      selectedCharacterId: initial.characters[0]?.id ?? null,
-      selectedExpeditionMode: 'campaign-main',
-      squadSelection: [false, false, false, false],
-      selectedBattleUnitId: null,
-      selectedCardId: null,
-      autoBattle: false,
-      excludedNotice: null,
-    },
+    ui: freshUi(initial),
 
     newGame: () => {
       const c = createNewCampaign(registry, getConfig(), rng)
-      set({ campaign: c, rev: get().rev + 1 })
+      set({ campaign: c, ui: freshUi(c), rev: get().rev + 1 })
       persist(c)
     },
     resetSave: () => {
       const c = createNewCampaign(registry, getConfig(), rng)
-      set({ campaign: c, rev: get().rev + 1 })
+      set({ campaign: c, ui: freshUi(c), rev: get().rev + 1 })
       persist(c)
     },
     setTab: (t) => set((s) => ({ ui: { ...s.ui, tab: t } })),
@@ -162,6 +181,7 @@ export const useGame = create<StoreState>((set, get) => {
       commit(() => {
         get().campaign.pendingHubNotice = null
       }),
+    dismissExcluded: () => set((s) => ({ ui: { ...s.ui, excludedNotice: null } })),
 
     selectCharacter: (id) => set((s) => ({ ui: { ...s.ui, selectedCharacterId: id } })),
     setSquadSlot: (slot, characterId) =>

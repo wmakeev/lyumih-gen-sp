@@ -109,6 +109,40 @@
   в бою подтвердил рендер floor/wall из `tiles.png`, юниты и подсветки поверх тайла, 0 ошибок в консоли.
   Не подключены (опц.): `spawn` и `hl_*`-тайлы — подсветки остались CSS-паттернами (дальтонизм, этап B).
 
+### 🔧 Фиксы code-review (`review.md`, 2026-06-28)
+
+Триаж 12 находок ревью → 10 живых исправлено, 2 (#5/#7) — частично подтверждены (см. ниже).
+Гейт после фиксов: **80 тестов ✓** (75 + 5 новых регрессов `test/review-fixes.test.ts`), `tsc` чист,
+`vite build` ок, живой Playwright-smoke (поражение → finalizeDefeat → retry, 0 ошибок в консоли).
+
+- **#1 🔴 Поражение не теряет прогресс (§16.6).** Новый `finalizeDefeat` (`finalize.ts`): при `phase==='defeat'`
+  применяет `worldPower += kills` и death-roll `unitLevel` павших, затем **запекает** их в `battleAttemptSnapshot`
+  (worldPower + unitLevel), чтобы пережить откат retry/abandon. Флаг `BattleState.defeatFinalized` (защита от
+  повтора/перезагрузки). Вызов — централизованно в `store.commit` (`maybeFinalizeDefeat`) → покрывает все боевые
+  действия и авто-бой. Живой внутрибоевой L карт/предметов НЕ сохраняется (бой переигрывается с того же снимка, §6.8).
+- **#2 🔴 proc_extra_hit ×100.** Данные `content/mods.ts`: `baseChance` 0.25/0.3/0.2 → 25/30/20 (проц.пункты,
+  как все percent-ops); `rollProcExtraHits` делит /100 как и было. Тест на частоту (~25%, ловит регрессию в 100×).
+- **#3 🔴 id-счётчик в персист.** `persistence.ts`: `idCounter` в envelope (`getIdCounter` при save, `resetIdCounter`
+  при load ДО любого `nextId`); фолбэк для старых сейвов — `maxIdSuffix` (обход структуры, max base36-суффикса).
+  Плюс минимальная валидация формы сейва (`isValidCampaign`) → битый сейв = новая игра.
+- **#4 🟠 statMods в боевой математике.** `effectiveStat(unit, stat)` в `queue.ts` (база + statMods статусов);
+  `unitInitiative` делегирует ему; `damage.ts` читает через него `statBonus`/critChance/defense. Бафы/дебафы карт
+  теперь влияют не только на инициативу.
+- **#5 🟠 базовая атака героя по классу.** `buildStrikeCard` (`spawn.ts`) резолвит `cls.baseAttack`
+  (shot/magic_bolt/strike) и берёт `kind` из шаблона, а не хардкодит melee `strike`. (Триаж ошибочно счёл
+  исправленным — поле `baseAttackId` ставилось, но карта строилась всё равно из strike.)
+- **#6 🟠 павшие не получают victory-награды.** Guard `unit.hp<=0 → continue` в `applyVictoryRolls` (только death-roll).
+- **#8 🟠 lucky в бою (§16.15).** Поля `BattleUnit.luckyCard/luckyItem` (из `luckyFlags` при спавне героя);
+  `engine.useCard`/`basicAttack` прокидывают `{ lucky }` во внутрибоевые `rollLevelUpWithLuck`.
+- **#10 🟡 уровень базовой атаки врага** = `unitLevel` (масштаб с worldPower), а не `unitId.length % 5`.
+- **#11 🟡 pickWeighted** — throw на пустом пуле архетипов (вместо `undefined`→краш).
+- **#12 🟡 item level-up** — `syncBattleProgress` использует `rollEquippedItemLevel` (guard «кулаки 0 не растут»);
+  мёртвый `applyItemLevelUp` удалён (единственная реализация — `memento/victory.ts`).
+- **cleanup:** `newGame`/`resetSave` сбрасывают ui-слайс (`freshUi`); баннер excluded в `App.tsx` закрываемый
+  (`dismissExcluded`) и показывает имена вместо raw id.
+- **НЕ менял #7** (prod-сборка стартует на dev-балансе) — осознанное решение (dev дефолт), задокументировано в
+  `gen-project-decisions`; #9 закрыт частично (валидация формы добавлена, QuotaExceeded-флаг в UI — вне scope).
+
 ## Открытые вопросы / допущения (решены дефолтами, отметить в docs)
 - Тай-брейк initiative → по id юнита.
 - LoS-алгоритм → супер-покрытие/Bresenham (определим в Этапе 2).

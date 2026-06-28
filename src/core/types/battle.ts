@@ -90,6 +90,10 @@ export interface BattleUnit {
    * запечены в stats при спавне.
    */
   defensiveMods?: ModSlotState[]
+  /** Склонность lucky_skill: один retry на внутрибоевом росте L умений (§16.15). */
+  luckyCard?: boolean
+  /** Склонность lucky_item: один retry на росте L оружия при атаке (§16.15). */
+  luckyItem?: boolean
 }
 
 export type Terrain = 'floor' | 'wall'
@@ -133,6 +137,9 @@ export interface BattleState {
   enemyKills: number
   /** Метаданные сценария/попытки. */
   scenarioSlotIndex?: number
+  /** Поражение уже финализировано (death-rolls/worldPower запечены) — защита от
+   * повторного применения (повторный рендер, перезагрузка). */
+  defeatFinalized?: boolean
 }
 
 /** Координата клетки. */

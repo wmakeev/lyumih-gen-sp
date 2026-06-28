@@ -74,7 +74,7 @@ export const CARD_ITEM_MODS: ModTemplate[] = [
     group: 'damage',
     requires: ['weapon'],
     descriptionLines: ['Иногда срабатывает дополнительный удар.'],
-    ops: [{ kind: 'proc_extra_hit', baseChance: 0.25, hits: 1 }],
+    ops: [{ kind: 'proc_extra_hit', baseChance: 25, hits: 1 }],
   },
   {
     id: 'm_double_tap',
@@ -82,7 +82,7 @@ export const CARD_ITEM_MODS: ModTemplate[] = [
     group: 'damage',
     requires: ['ranged'],
     descriptionLines: ['Иногда выпускается ещё один снаряд.'],
-    ops: [{ kind: 'proc_extra_hit', baseChance: 0.3, hits: 1 }],
+    ops: [{ kind: 'proc_extra_hit', baseChance: 30, hits: 1 }],
   },
   // --- utility ---
   {
@@ -225,7 +225,7 @@ export const CARD_ITEM_MODS: ModTemplate[] = [
     group: 'damage',
     requires: ['melee'],
     descriptionLines: ['Иногда наносится добавочный ближний удар.', 'Контент второй фазы.'],
-    ops: [{ kind: 'proc_extra_hit', baseChance: 0.2, hits: 1 }],
+    ops: [{ kind: 'proc_extra_hit', baseChance: 20, hits: 1 }],
     enabled: false,
   },
   {

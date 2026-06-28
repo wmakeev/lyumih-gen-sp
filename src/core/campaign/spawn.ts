@@ -21,6 +21,7 @@ import {
   collectModEffects,
   resolveCarrierMods,
 } from '../memento/mods'
+import { luckyFlags } from './specs'
 
 function equippedItems(ch: Character): {
   weapon?: ItemInstance
@@ -85,11 +86,15 @@ export function characterBattleStats(
 function buildStrikeCard(ch: Character, registry: ContentRegistry): BattleCard {
   const eq = equippedItems(ch)
   const weapon = eq.weapon
-  const tpl = registry.cards.get(STRIKE_TEMPLATE_ID)
+  // Базовая атака класса (strike/shot/magic_bolt) — иначе «кулаки» = strike.
+  const cls = registry.classes.get(ch.classId)
+  const baseId = cls?.baseAttack ?? STRIKE_TEMPLATE_ID
+  const tpl = registry.cards.get(baseId) ?? registry.cards.get(STRIKE_TEMPLATE_ID)
+  const templateId = tpl?.id ?? STRIKE_TEMPLATE_ID
   return {
     instanceId: `strike-${ch.id}`,
-    templateId: STRIKE_TEMPLATE_ID,
-    kind: 'melee',
+    templateId,
+    kind: tpl?.kind ?? 'melee',
     level: weapon ? weapon.itemLevel : 0, // «кулаки» = 0 (§16.5)
     uses: 0,
     damageLevelBonus: 0,
@@ -160,6 +165,7 @@ export function spawnHeroUnit(
     ...(eq.accessory?.modSlots ?? []),
   ]
   const cls = registry.classes.get(ch.classId)
+  const lucky = luckyFlags(ch, registry)
   return {
     id: `unit-${ch.id}`,
     side: 'player',
@@ -182,6 +188,8 @@ export function spawnHeroUnit(
     hasActedThisRound: false,
     hitsTaken: 0,
     defensiveMods,
+    luckyCard: lucky.card,
+    luckyItem: lucky.item,
   }
 }
 
@@ -225,6 +233,7 @@ function enemyBattleCards(
   arch: EnemyArchetype,
   registry: ContentRegistry,
   unitId: string,
+  unitLevel: number,
 ): BattleCard[] {
   const cards: BattleCard[] = []
   for (const preset of arch.skillPresets) {
@@ -254,7 +263,7 @@ function enemyBattleCards(
     instanceId: `${unitId}-basic`,
     templateId: registry.cards.has(basicId) ? basicId : STRIKE_TEMPLATE_ID,
     kind: 'melee',
-    level: Math.max(1, unitId.length % 5),
+    level: Math.max(1, unitLevel), // §13.2: масштаб с worldPower, не от длины id
     uses: 0,
     damageLevelBonus: 0,
     cooldownLeft: 0,
@@ -301,7 +310,7 @@ export function spawnEnemyUnit(
     displayName: arch.label,
     iconEmoji: arch.iconEmoji,
     statusEffects: [],
-    cards: enemyBattleCards(arch, registry, unitId),
+    cards: enemyBattleCards(arch, registry, unitId, unitLevel),
     baseAttackId: arch.baseAttack,
     hasActedThisRound: false,
     hitsTaken: 0,

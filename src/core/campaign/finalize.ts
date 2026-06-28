@@ -23,9 +23,6 @@ import type {
   PassiveInstance,
 } from '../types/memento'
 import {
-  rollLevelUpWithLuck,
-} from '../memento/levels'
-import {
   rollEquippedItemLevel,
   rollUnitLevel,
   rollFilledModSlots,
@@ -125,8 +122,9 @@ function syncBattleProgress(
     const flags = luckyFlags(ch, registry)
     for (const item of [eq.armor, eq.accessory]) {
       if (!item) continue
+      // L за каждый полученный удар (§16.5); 0-уровневые не растут — guard в хелпере.
       for (let h = 0; h < unit.hitsTaken; h++) {
-        if (rollLevelUpWithLuck(item.itemLevel, rng, { lucky: flags.item })) item.itemLevel += 1
+        rollEquippedItemLevel(item, rng, { lucky: flags.item })
       }
       const tpl = registry.items.get(item.templateId)
       syncItemSlots(item, tpl?.tags ?? ['armor'], registry.cardItemMods, oc, config, rng)
@@ -157,6 +155,9 @@ function applyVictoryRolls(
 ): void {
   for (const unit of battle.units) {
     if (unit.side !== 'player' || !unit.characterId) continue
+    // Павшие получают только консолационный death-roll (applyDeathRolls),
+    // а не полный victory-payout — иначе двойной начёт unitLevel (§16.6/16.7).
+    if (unit.hp <= 0) continue
     const ch = charById(campaign, unit.characterId)
     if (!ch) continue
     const flags = luckyFlags(ch, registry)
@@ -267,4 +268,35 @@ export function finalizeBattle(
   }
 
   return { notice, deaths }
+}
+
+/**
+ * Завершение боя по ПОРАЖЕНИЮ (§16.6, инвариант Memento Mori: «прогресс не
+ * обнуляется с поражением»). Применяет worldPower += kills и death-roll unitLevel
+ * павших (через finalizeBattle, который сам пропускает victory-броски), затем
+ * «запекает» эти перманентные результаты в снимок попытки — иначе retry/abandon,
+ * откатывающие состояние к снимку, их сотрут. Живой внутрибоевой прогресс карт/
+ * предметов намеренно НЕ сохраняется: бой переигрывается с того же снимка (§6.8).
+ */
+export function finalizeDefeat(
+  campaign: CampaignState,
+  registry: ContentRegistry,
+  config: GameConfig,
+  rng: Rng,
+): FinalizeResult {
+  const battle = campaign.battle
+  if (!battle || battle.phase !== 'defeat') return { notice: null, deaths: 0 }
+
+  const result = finalizeBattle(campaign, registry, config, rng, 0)
+
+  // Запечь перманентные итоги (worldPower + death-roll unitLevel) в снимок попытки.
+  const snap = campaign.battleAttemptSnapshot
+  if (snap) {
+    snap.worldPower = campaign.worldPower
+    for (const sc of snap.characters) {
+      const live = campaign.characters.find((c) => c.id === sc.id)
+      if (live) sc.unitLevel = live.unitLevel
+    }
+  }
+  return result
 }

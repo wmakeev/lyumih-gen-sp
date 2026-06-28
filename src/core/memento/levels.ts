@@ -77,20 +77,5 @@ export function applyPassiveProc(
   return passive
 }
 
-/**
- * Рост itemLevel предмета (§16.5): weapon при базовой атаке, armor/accessory
- * при получении удара. «Кулаки» (itemLevel 0) не прогрессируют — это решает
- * вызывающий код, сюда передаётся только реальный предмет.
- * Возвращает true, если уровень вырос.
- */
-export function applyItemLevelUp(
-  item: { itemLevel: number },
-  rng: Rng,
-  options?: LevelUpOptions,
-): boolean {
-  if (rollLevelUpWithLuck(item.itemLevel, rng, options)) {
-    item.itemLevel += 1
-    return true
-  }
-  return false
-}
+// Рост itemLevel предмета (§16.5) живёт в memento/victory.ts → rollEquippedItemLevel
+// (единственная реализация с guard'ом «кулаки itemLevel 0 не растут»).

@@ -7,6 +7,8 @@ import { SeededRng, type Rng } from '../rng'
 import type { ContentRegistry, StaticScenario, EnemyArchetype } from '../types/content'
 
 function pickWeighted(arch: EnemyArchetype[], rng: Rng): EnemyArchetype {
+  if (arch.length === 0)
+    throw new Error('pickWeighted: пустой пул архетипов (нет normalEnemies для генератора)')
   const total = arch.reduce((s, a) => s + Math.max(1, a.spawnWeight), 0)
   let r = rng.nextFloat() * total
   for (const a of arch) {

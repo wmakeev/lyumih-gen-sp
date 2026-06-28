@@ -13,6 +13,13 @@ export function App() {
   const notice = campaign.pendingHubNotice
   const excluded = useGame((s) => s.ui.excludedNotice)
   const dismissNotice = useGame((s) => s.dismissNotice)
+  const dismissExcluded = useGame((s) => s.dismissExcluded)
+
+  // excludedNotice хранит ch.id (успешный путь) или текст причины (отказ старта) —
+  // показываем человеку имя, если id резолвится в персонажа.
+  const excludedLabels = (excluded ?? []).map(
+    (idOrText) => campaign.characters.find((c) => c.id === idOrText)?.name ?? idOrText,
+  )
 
   let screen: React.ReactNode
   if (campaign.phase === 'inter_battle') screen = <InterBattleScreen />
@@ -37,8 +44,10 @@ export function App() {
             <Alert
               type="warning"
               showIcon
+              closable
+              onClose={dismissExcluded}
               message="Не все бойцы отправились в поход"
-              description={excluded.join('; ')}
+              description={excludedLabels.join('; ')}
             />
           )}
           {screen}

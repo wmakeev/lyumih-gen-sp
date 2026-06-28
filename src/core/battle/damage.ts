@@ -15,13 +15,14 @@ import {
 } from '../memento/mods'
 import { DAMAGING_KINDS, HEALING_KINDS, type CardTemplate } from '../types/cards'
 import type { BattleUnit } from '../types/battle'
+import { effectiveStat } from './queue'
 
 const CRIT_MULTIPLIER = 1.5
 
-/** Стат-бонус к величине умения (§6.6). Линейная модель: прямой вклад стата. */
+/** Стат-бонус к величине умения (§6.6). Линейная модель: прямой вклад стата
+ * (с учётом статус-бафов/дебафов носителя). */
 export function statBonus(caster: BattleUnit, card: CardTemplate): number {
-  const v = caster.stats[card.statSource] ?? 0
-  return Math.round(v)
+  return Math.round(effectiveStat(caster, card.statSource))
 }
 
 /**
@@ -80,13 +81,13 @@ export function resolveCardAmount(
 
   const critChance = Math.max(
     0,
-    (caster.stats.critChance ?? 0) + effects.critChanceAdd,
+    effectiveStat(caster, 'critChance') + effects.critChanceAdd,
   )
   const isCrit = rng.chance(critChance / 100)
   if (isCrit) amount = Math.round(amount * CRIT_MULTIPLIER)
 
   if (target) {
-    const def = target.stats.defense ?? 0
+    const def = effectiveStat(target, 'defense')
     amount = Math.max(1, amount - def)
   }
 
