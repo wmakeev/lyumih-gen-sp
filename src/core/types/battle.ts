@@ -82,6 +82,10 @@ export interface BattleUnit {
   /** Сколько раз юнит получил урон (для прокачки брони/аксессуара §16.5). */
   hitsTaken: number
   isBoss?: boolean
+  /** Спец-механики босса (§13.4): reflect/anti_heal/stealth/… — см. boss.ts. */
+  bossMechanics?: string[]
+  /** summon_minions: миньоны уже призваны в этом бою (одноразово). */
+  summonedMinions?: boolean
   /** Приоритеты умений для AI (templateId по убыванию). */
   skillPriorities?: string[]
   /**

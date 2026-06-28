@@ -315,6 +315,7 @@ export function spawnEnemyUnit(
     hasActedThisRound: false,
     hitsTaken: 0,
     isBoss: arch.isBoss,
+    bossMechanics: arch.bossMechanics,
     skillPriorities: arch.skillPriorities,
   }
 }

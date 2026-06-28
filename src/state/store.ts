@@ -40,6 +40,9 @@ import {
   bindChestPassive,
   equipItem,
   unequipSlot,
+  pickCarrierMod,
+  removeCarrierMod,
+  type CarrierKind,
 } from '../core/campaign'
 
 export type HubTab = 'persona' | 'shop' | 'tavern' | 'memento' | 'codex' | 'help' | 'expedition'
@@ -49,7 +52,16 @@ const registry = CONTENT
 const TAVERN_COUNT = 4
 
 function battleContext(): BattleContext {
-  return { cards: registry.cards, mods: registry.cardItemMods, rng }
+  return {
+    cards: registry.cards,
+    mods: registry.cardItemMods,
+    rng,
+    // Резисты/уязвимости по расе и стихии урона (§13.3).
+    resist: (raceId, damageTag) => {
+      if (!raceId || !damageTag) return 1
+      return registry.races.get(raceId)?.affinities[damageTag] ?? 1
+    },
+  }
 }
 
 interface UIState {
@@ -85,6 +97,21 @@ interface StoreState {
   togglePassiveEquip: (characterId: string, passiveId: string) => void
   bindCard: (cardId: string, characterId: string) => void
   bindPassive: (passiveId: string, characterId: string) => void
+
+  // моды носителей (§16.8–16.9.1)
+  pickMod: (
+    characterId: string,
+    kind: CarrierKind,
+    carrierId: string,
+    slotIndex: number,
+    templateId: string,
+  ) => void
+  removeMod: (
+    characterId: string,
+    kind: CarrierKind,
+    carrierId: string,
+    slotIndex: number,
+  ) => void
 
   // магазин/таверна
   shopBuyItem: (itemId: string) => void
@@ -223,6 +250,21 @@ export const useGame = create<StoreState>((set, get) => {
     bindCard: (cardId, characterId) => commit(() => bindChestCard(get().campaign, cardId, characterId)),
     bindPassive: (passiveId, characterId) =>
       commit(() => bindChestPassive(get().campaign, passiveId, characterId, LIMITS.baseOwnedPassives)),
+
+    pickMod: (characterId, kind, carrierId, slotIndex, templateId) =>
+      commit(() => {
+        const c = get().campaign
+        if (c.expedition) return
+        const ch = c.characters.find((x) => x.id === characterId)
+        if (ch) pickCarrierMod(ch, kind, carrierId, slotIndex, templateId, registry)
+      }),
+    removeMod: (characterId, kind, carrierId, slotIndex) =>
+      commit(() => {
+        const c = get().campaign
+        if (c.expedition) return
+        const ch = c.characters.find((x) => x.id === characterId)
+        if (ch) removeCarrierMod(ch, kind, carrierId, slotIndex, registry, getConfig(), rng)
+      }),
 
     shopBuyItem: (itemId) => commit(() => buyItem(get().campaign, itemId)),
     shopBuyCard: () => commit(() => buyCard(get().campaign)),

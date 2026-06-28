@@ -34,6 +34,14 @@ import {
   aliveBySide,
 } from './queue'
 import { resolveCardAmount } from './damage'
+import {
+  BOSS,
+  antiHealActiveAgainst,
+  dodgeChance,
+  elementTag,
+  hasMechanic,
+  isMagicTag,
+} from './boss'
 
 export interface BattleContext {
   cards: ReadonlyMap<string, CardTemplate>
@@ -100,6 +108,89 @@ export function onTurnStart(state: BattleState, unit: BattleUnit): void {
     if (st.remainingTurns > 0) survivors.push(st)
   }
   unit.statusEffects = survivors
+
+  // self_regen: восстановление в начале хода (§13.4).
+  if (isAlive(unit) && hasMechanic(unit, 'self_regen')) {
+    healUnit(state, unit, (unit.maxHp * BOSS.selfRegenPct) / 100, `${unit.displayName} (регенерация)`)
+  }
+  // summon_minions: одноразовый призыв при падении ниже порога HP (§13.4).
+  if (
+    isAlive(unit) &&
+    hasMechanic(unit, 'summon_minions') &&
+    !unit.summonedMinions &&
+    unit.hp < unit.maxHp * BOSS.summonHpThreshold
+  ) {
+    summonMinions(state, unit)
+  }
+}
+
+/** Призывает миньонов рядом с боссом (summon_minions §13.4). Одноразово. */
+function summonMinions(state: BattleState, boss: BattleUnit): void {
+  const free = freeAdjacentCells(state, boss, BOSS.minionCount)
+  if (free.length === 0) return
+  boss.summonedMinions = true
+  let spawned = 0
+  for (const cell of free) {
+    const minion = buildMinion(boss, cell, spawned)
+    if (!minion) continue
+    state.units.push(minion)
+    spawned += 1
+  }
+  if (spawned > 0) {
+    log(state, 'info', `${boss.displayName} призывает миньонов (${spawned})`)
+  }
+}
+
+/** Свободные (в пределах поля, не стена, не занятые) клетки вокруг юнита. */
+function freeAdjacentCells(state: BattleState, origin: BattleUnit, max: number): Cell[] {
+  const occ = occupiedCellKeys(state)
+  const out: Cell[] = []
+  const { width, height, terrain } = state.field
+  for (let dy = -1; dy <= 1 && out.length < max; dy++) {
+    for (let dx = -1; dx <= 1 && out.length < max; dx++) {
+      if (dx === 0 && dy === 0) continue
+      const x = origin.x + dx
+      const y = origin.y + dy
+      if (x < 0 || y < 0 || x >= width || y >= height) continue
+      if (terrain[y * width + x] === 'wall') continue
+      if (occ.has(`${x},${y}`)) continue
+      out.push({ x, y })
+    }
+  }
+  return out
+}
+
+/** Минимальный миньон-копия босса: уменьшенные статы/HP и его базовая атака. */
+function buildMinion(boss: BattleUnit, cell: Cell, index: number): BattleUnit | null {
+  const basic = boss.cards.find((c) => c.isBasic)
+  if (!basic) return null
+  const stats = { ...boss.stats }
+  for (const k of Object.keys(stats) as (keyof typeof stats)[]) {
+    stats[k] = Math.max(0, Math.round(stats[k] * BOSS.minionStatFactor))
+  }
+  const hp = Math.max(1, Math.round(boss.maxHp * BOSS.minionHpFactor))
+  return {
+    id: `${boss.id}-minion-${index}`,
+    side: boss.side,
+    x: cell.x,
+    y: cell.y,
+    hp,
+    maxHp: hp,
+    unitLevel: boss.unitLevel,
+    initiativeBase: stats.initiative,
+    stats,
+    baseStats: { ...stats },
+    archetypeId: boss.archetypeId,
+    raceId: boss.raceId,
+    classId: boss.classId,
+    displayName: `${boss.displayName} (миньон)`,
+    iconEmoji: boss.iconEmoji,
+    statusEffects: [],
+    cards: [{ ...basic, instanceId: `${boss.id}-minion-${index}-strike`, uses: 0, cooldownLeft: 0 }],
+    baseAttackId: boss.baseAttackId,
+    hasActedThisRound: true, // вступают в очередь со следующего раунда
+    hitsTaken: 0,
+  }
 }
 
 /** Переход хода к следующему живому юниту; при исчерпании — новый раунд. */
@@ -149,17 +240,42 @@ export function applyMove(state: BattleState, unitId: string, dest: Cell): boole
 
 // --- Урон и лечение ---
 
-/** Наносит урон юниту, обрабатывает downed/kill/worldPower и защитные проки. */
+/**
+ * Наносит урон юниту, обрабатывает downed/kill/worldPower и защитные проки.
+ * При наличии ctx применяет резисты рас (§13.3) и входящие боссовые механики
+ * (§13.4): уклонение (stealth/evasion), spell_shield, damage_cap.
+ */
 export function applyDamage(
   state: BattleState,
   target: BattleUnit,
   rawAmount: number,
   damageTag: string | undefined,
   sourceLabel: string,
+  ctx?: BattleContext,
 ): number {
   if (!isAlive(target)) return 0
-  void damageTag // резисты по тегам/расам — расширение Этапа 3 (§13.3)
-  const amount = Math.max(0, Math.round(rawAmount))
+
+  // Уклонение (stealth/evasion) — полный промах (нужен rng из ctx).
+  if (ctx) {
+    const dodge = dodgeChance(target)
+    if (dodge > 0 && ctx.rng.chance(dodge)) {
+      log(state, 'info', `${target.displayName} уклоняется (${sourceLabel})`)
+      return 0
+    }
+  }
+
+  let scaled = Math.max(0, rawAmount)
+  // Резисты/уязвимости по расе цели и стихии урона (§13.3).
+  if (ctx?.resist) scaled *= ctx.resist(target.raceId, damageTag)
+  // spell_shield: входящий магический урон ослаблен (§13.4).
+  if (isMagicTag(damageTag) && hasMechanic(target, 'spell_shield')) {
+    scaled *= BOSS.spellShieldFactor
+  }
+  let amount = Math.max(0, Math.round(scaled))
+  // damage_cap: не больше доли maxHp за один удар (§13.4).
+  if (hasMechanic(target, 'damage_cap')) {
+    amount = Math.min(amount, Math.round((target.maxHp * BOSS.damageCapPct) / 100))
+  }
   target.hp = Math.max(0, target.hp - amount)
   if (amount > 0) target.hitsTaken += 1
   log(
@@ -182,9 +298,12 @@ export function healUnit(
   amount: number,
   sourceLabel: string,
 ): number {
+  // anti_heal: пока жив босс-противник цели, лечение ослаблено (§13.4).
+  let healAmount = Math.max(0, amount)
+  if (antiHealActiveAgainst(state, target)) healAmount *= BOSS.antiHealFactor
   // Лечение выше 0 поднимает downed (§6.7)
   const before = target.hp
-  target.hp = Math.min(target.maxHp, target.hp + Math.max(0, Math.round(amount)))
+  target.hp = Math.min(target.maxHp, target.hp + Math.max(0, Math.round(healAmount)))
   const healed = target.hp - before
   if (healed > 0) {
     const revived = before === 0 && target.hp > 0
@@ -315,16 +434,19 @@ export function useCard(
       let dmg = res.amount
       if (isAoe && manhattan(aim, tgt) === 0) dmg = Math.round(dmg * effects.aoeCenterDamageMult)
       if (res.isCrit) log(state, 'crit', `Крит по ${tgt.displayName}!`)
-      const dealt = applyDamage(state, tgt, dmg, tpl.tags[0], caster.displayName)
+      const tag = elementTag(tpl.tags)
+      let dealt = applyDamage(state, tgt, dmg, tag, caster.displayName, ctx)
       // доп. удары (proc_extra_hit)
       for (let h = 0; h < res.extraHits && isAlive(tgt); h++) {
         const extra = resolveCardAmount(tpl, levelForCalc, caster, tgt, mods, ctx.rng)
         log(state, 'mod_proc', `Доп. удар по ${tgt.displayName}`)
-        applyDamage(state, tgt, extra.amount, tpl.tags[0], caster.displayName)
+        dealt += applyDamage(state, tgt, extra.amount, tag, caster.displayName, ctx)
       }
-      // lifesteal
-      if (effects.lifestealPct > 0 && dealt > 0) {
-        healUnit(state, caster, (dealt * effects.lifestealPct) / 100, `${caster.displayName} (вампиризм)`)
+      // lifesteal: моды носителя + боссовый вампиризм (§13.4)
+      const lifestealPct =
+        effects.lifestealPct + (hasMechanic(caster, 'lifesteal') ? BOSS.lifestealPct : 0)
+      if (lifestealPct > 0 && dealt > 0) {
+        healUnit(state, caster, (dealt * lifestealPct) / 100, `${caster.displayName} (вампиризм)`)
       }
       // защитные проки цели (reflect / self_heal_on_damaged)
       applyDefensiveProcs(state, tgt, caster, dealt, ctx)
@@ -384,15 +506,23 @@ function applyDefensiveProcs(
   damageDealt: number,
   ctx: BattleContext,
 ): void {
-  if (damageDealt <= 0 || !target.defensiveMods) return
-  const eff = collectModEffects(resolveCarrierMods(target.defensiveMods, ctx.mods))
-  if (eff.reflectOnHitPct > 0 && isAlive(attacker)) {
-    const reflected = Math.round((damageDealt * eff.reflectOnHitPct) / 100)
+  if (damageDealt <= 0) return
+
+  // reflect: фиксированное отражение % урона боссом (§13.4) поверх мод-reflect.
+  let reflectPct = hasMechanic(target, 'reflect') ? BOSS.reflectPct : 0
+  if (target.defensiveMods) {
+    reflectPct += collectModEffects(resolveCarrierMods(target.defensiveMods, ctx.mods)).reflectOnHitPct
+  }
+  if (reflectPct > 0 && isAlive(attacker)) {
+    const reflected = Math.round((damageDealt * reflectPct) / 100)
     if (reflected > 0) {
       log(state, 'mod_proc', `${target.displayName} отражает ${reflected} урона`)
-      applyDamage(state, attacker, reflected, undefined, `${target.displayName} (отражение)`)
+      applyDamage(state, attacker, reflected, undefined, `${target.displayName} (отражение)`, ctx)
     }
   }
+
+  if (!target.defensiveMods) return
+  const eff = collectModEffects(resolveCarrierMods(target.defensiveMods, ctx.mods))
   if (eff.selfHealOnDamagedPct > 0 && isAlive(target)) {
     healUnit(state, target, (damageDealt * eff.selfHealOnDamagedPct) / 100, `${target.displayName} (регенерация брони)`)
   }

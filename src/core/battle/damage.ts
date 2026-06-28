@@ -16,6 +16,7 @@ import {
 import { DAMAGING_KINDS, HEALING_KINDS, type CardTemplate } from '../types/cards'
 import type { BattleUnit } from '../types/battle'
 import { effectiveStat } from './queue'
+import { BOSS, hasMechanic } from './boss'
 
 const CRIT_MULTIPLIER = 1.5
 
@@ -76,8 +77,13 @@ export function resolveCardAmount(
     }
   }
 
-  // Урон: мод-мультипликатор → крит → защита цели
+  // Урон: мод-мультипликатор → enrage → крит → защита цели
   let amount = applyDamageMult(base, effects)
+
+  // enrage_below_half: исходящий урон усилен при HP < 50% (§13.4).
+  if (hasMechanic(caster, 'enrage_below_half') && caster.hp * 2 < caster.maxHp) {
+    amount = Math.round(amount * BOSS.enrageMult)
+  }
 
   const critChance = Math.max(
     0,

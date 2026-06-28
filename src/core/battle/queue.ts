@@ -5,6 +5,7 @@
 
 import type { BattleState, BattleUnit } from '../types/battle'
 import type { StatBlock } from '../types/stats'
+import { firstStrikeBonus } from './boss'
 
 export function isDowned(u: BattleUnit): boolean {
   return u.hp <= 0
@@ -38,7 +39,9 @@ export function computeTurnOrder(units: readonly BattleUnit[]): string[] {
     .filter(isAlive)
     .slice()
     .sort((a, b) => {
-      const di = unitInitiative(b) - unitInitiative(a)
+      // first_strike-боссы получают приоритет очереди (§13.4).
+      const di =
+        unitInitiative(b) + firstStrikeBonus(b) - (unitInitiative(a) + firstStrikeBonus(a))
       if (di !== 0) return di
       return a.id < b.id ? -1 : a.id > b.id ? 1 : 0
     })

@@ -143,8 +143,39 @@
 - **НЕ менял #7** (prod-сборка стартует на dev-балансе) — осознанное решение (dev дефолт), задокументировано в
   `gen-project-decisions`; #9 закрыт частично (валидация формы добавлена, QuotaExceeded-флаг в UI — вне scope).
 
+### ⚔️ Боссовые механики + UI модов (2026-06-29)
+
+Гейт: **99 тестов ✓** (80 + 14 `test/boss-mechanics.test.ts` + 5 `test/campaign-mods.test.ts`), `tsc` чист,
+`vite build` ок, живой Playwright-smoke: вкладка Memento → клик пустого слота → модал оффера → выбор мода
+(`filled`, lm 0) → клик занятого слота → Popconfirm → снятие (`empty` + свежий оффер, откат L к полу вехи). 0 новых
+ошибок консоли (есть лишь предсуществующее AntD `List`-deprecation).
+
+**Боссовые механики (§13.4) + элементальные резисты рас (§13.3).** Данные уже были в контенте (8 боссов
+`enemies.ts` с `bossMechanics[]`, расы `races.ts` с `affinities`) — реализован движок:
+- `BattleUnit.bossMechanics?` + `summonedMinions?` (`types/battle.ts`); проброс `arch.bossMechanics` в `spawn.ts`.
+- Новый модуль `battle/boss.ts`: константы баланса `BOSS`, чистые хелперы (`hasMechanic`, `dodgeChance`,
+  `elementTag`, `isMagicTag`, `firstStrikeBonus`, `antiHealActiveAgainst`) — без зависимости от движка (только типы).
+- `applyDamage` получил опц. `ctx`: уклонение (stealth/evasion), **резисты рас** (`ctx.resist`), spell_shield
+  (магия ×0.5), damage_cap (потолок % maxHp/удар). Хук `ctx.resist` подключён в `store.battleContext` из `registry.races`.
+  Важно: тег урона берётся через `elementTag(tpl.tags)` (стихия, а не `tags[0]`=вид).
+- `resolveCardAmount` (`damage.ts`): enrage_below_half (×1.5 при HP<50% кастера).
+- `useCard`: боссовый lifesteal (вампиризм на всех атаках поверх мод-lifesteal).
+- `healUnit`: anti_heal (лечение противников живого босса ×0.3).
+- `onTurnStart`: self_regen (% maxHp/ход) + summon_minions (одноразовый призыв миньонов рядом при HP<50%).
+- `applyDefensiveProcs`: фиксированный боссовый reflect (% урона) поверх мод-reflect.
+- `computeTurnOrder` (`queue.ts`): first_strike → бонус инициативы (ходит первым).
+
+**UI модов (§16.8–16.9.1).** Ядро `memento/slots.ts` (`pickMod`/`removeMod`) было готово — добавлены оркестрация и UI:
+- `campaign/mods.ts`: `pickCarrierMod`/`removeCarrierMod` — резолвят носителя (card/item/passive) персонажа,
+  подбирают теги/пул/offerCount/soft-rollback, делегируют в ядро; возвращают `false` вместо исключений (стор безопасен).
+- `store.ts`: экшены `pickMod`/`removeMod` (через `commit`, гард «нельзя в экспедиции»).
+- `MementoTab.tsx`: слоты стали интерактивны — клик пустого слота открывает `Modal` с оффером (3–4 мода, описания,
+  кнопка «Выбрать»); клик занятого — `Popconfirm` на снятие. Во время похода — `Alert` + слоты заблокированы.
+
 ## Открытые вопросы / допущения (решены дефолтами, отметить в docs)
 - Тай-брейк initiative → по id юнита.
 - LoS-алгоритм → супер-покрытие/Bresenham (определим в Этапе 2).
 - statusEffects модель не задана спекой → ходовой счётчик + стак по правилам контента.
-- Boss-механики (reflection/stealth/anti-heal) → реализуем как статусы/флаги.
+- Boss-механики реализованы как флаги `bossMechanics[]` + хелперы `battle/boss.ts` (не статусы). Числовые параметры —
+  в `BOSS` (boss.ts), баланс черновой. summon_minions: миньон = уменьшенная копия босса (×0.4 статы, ×0.25 HP) с его
+  базовой атакой, вступает в очередь со следующего раунда.
