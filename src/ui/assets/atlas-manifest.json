@@ -1,0 +1,124 @@
+{
+  "_doc": "Единая точка истины для нарезки атласов И обёртки <Sprite> (план §D3/§7.5). Пока src=null — спрайтов нет, <Sprite> рендерит фолбэк-эмодзи. На этапе E1 проставляются реальные пиксельные размеры (вытекают из заморожённой вёрстки) и src нарезанного листа. Порядок ids = порядок ячеек слева-направо, сверху-вниз → детерминированный index→(row,col).",
+  "atlases": {
+    "units": {
+      "_doc": "Мелкие токены поля боя/очереди (20–44px). Упрощённый, СВЕТЛЫЙ арт с толстым костяным контуром — читается на 40px (промпт 01-units-tokens.md). Те же ids, что у portraits.",
+      "src": "/atlases/units.png",
+      "cellW": 128,
+      "cellH": 128,
+      "cols": 6,
+      "rows": 4,
+      "ids": [
+        "warrior",
+        "mage",
+        "ranger",
+        "healer",
+        "rogue",
+        "paladin",
+        "warlock",
+        "berserker",
+        "beast",
+        "undead",
+        "human",
+        "orc",
+        "elf",
+        "specter",
+        "construct",
+        "demon"
+      ]
+    },
+    "portraits": {
+      "_doc": "Крупные детальные портреты (96–128px): деталь героя, карточка таверны, панель активного юнита. Источник — детальный full-body лист (промпт 05-portraits.md). ids идентичны units → один герой, два разных листа под свой размер.",
+      "src": "/atlases/portraits.png",
+      "cellW": 256,
+      "cellH": 256,
+      "cols": 6,
+      "rows": 4,
+      "ids": [
+        "warrior",
+        "mage",
+        "ranger",
+        "healer",
+        "rogue",
+        "paladin",
+        "warlock",
+        "berserker",
+        "beast",
+        "undead",
+        "human",
+        "orc",
+        "elf",
+        "specter",
+        "construct",
+        "demon"
+      ]
+    },
+    "icons": {
+      "src": "/atlases/icons.png",
+      "cellW": 128,
+      "cellH": 128,
+      "cols": 6,
+      "rows": 4,
+      "ids": [
+        "health",
+        "defense",
+        "attack",
+        "magicPower",
+        "mana",
+        "healPower",
+        "speed",
+        "initiative",
+        "critChance",
+        "melee",
+        "ranged",
+        "aoe",
+        "heal",
+        "regen",
+        "resurrect",
+        "buff",
+        "debuff",
+        "dot",
+        "lifesteal_spell",
+        "utility",
+        "slot_weapon",
+        "slot_armor",
+        "slot_accessory"
+      ]
+    },
+    "meta": {
+      "src": "/atlases/meta.png",
+      "cellW": 96,
+      "cellH": 96,
+      "cols": 6,
+      "rows": 2,
+      "ids": [
+        "axis_victory",
+        "axis_use",
+        "axis_death",
+        "mod_damage",
+        "mod_survival",
+        "mod_utility",
+        "mod_defense",
+        "gold",
+        "world_power",
+        "scenario"
+      ]
+    },
+    "tiles": {
+      "src": "/atlases/tiles.png",
+      "cellW": 64,
+      "cellH": 64,
+      "cols": 8,
+      "rows": 4,
+      "ids": [
+        "floor",
+        "wall",
+        "spawn",
+        "hl_move",
+        "hl_range",
+        "hl_los",
+        "hl_target"
+      ]
+    }
+  }
+}

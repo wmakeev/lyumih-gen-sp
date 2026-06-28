@@ -1,0 +1,415 @@
+/*
+ * Ручной слой темы «Memento Mori».
+ *
+ * AntD 6 по умолчанию рендерит cssVar (`--ant-color-*`). Семантические токены
+ * ниже потребляют те же переменные — ручные зоны (поле боя, токены юнитов,
+ * слоты модов) красятся из одного источника. Смена акцента в theme.ts
+ * пробрасывается сюда автоматически.
+ *
+ * Стороны/состояния дублируются НЕ только цветом (см. §8.1 отчёта): форма и
+ * иконка добавляются в разметке — здесь лишь палитра.
+ */
+
+:root {
+  /* Поверхности */
+  --mm-bg: var(--ant-color-bg-base, #0e0d12);
+  --mm-surface: var(--ant-color-bg-container, #16141b);
+  --mm-surface-raised: var(--ant-color-bg-elevated, #1c1a22);
+  --mm-border: var(--ant-color-border, #2a2730);
+  --mm-border-subtle: var(--ant-color-border-secondary, #211f28);
+
+  /* Текст */
+  --mm-text: var(--ant-color-text, #ede8dd);
+  --mm-text-muted: var(--ant-color-text-secondary, #a39e94);
+
+  /* Акцент Memento */
+  --mm-accent: var(--ant-color-primary, #b0302b);
+  --mm-accent-bg: var(--ant-color-primary-bg, rgba(176, 48, 43, 0.15));
+  --mm-accent-border: var(--ant-color-primary-border, rgba(176, 48, 43, 0.4));
+
+  /* Стороны боя — холодная сталь (свой) против кровавого (враг) */
+  --mm-side-player: #6fa8dc;
+  --mm-side-player-bg: rgba(111, 168, 220, 0.16);
+  --mm-side-enemy: #d9534f;
+  --mm-side-enemy-bg: rgba(217, 83, 79, 0.16);
+
+  /* Поле боя */
+  --mm-cell: #15141a;
+  --mm-cell-alt: #121117;
+  --mm-wall: #2b2832;
+
+  /* Семантика подсветок сетки (различаются паттерном/обводкой в разметке) */
+  --mm-hl-move: #4a7a4a;
+  --mm-hl-move-bg: rgba(74, 122, 74, 0.28);
+  --mm-hl-range: #c79a3a;
+  --mm-hl-target: var(--ant-color-error, #d9534f);
+  --mm-hl-active: #e0a93a;
+
+  /* Прогресс HP */
+  --mm-hp-player: #5a9e5a;
+  --mm-hp-enemy: #c0392b;
+}
+
+/* Заголовочный/логотипный шрифт — готично-римский Forum (с кириллицей). */
+.mm-display {
+  font-family: 'Forum', Georgia, 'Times New Roman', serif;
+  letter-spacing: 0.04em;
+}
+
+/* Аватар-токен юнита (бывший инлайн-стиль UnitIcon). */
+.mm-token {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  line-height: 1;
+  user-select: none;
+  background: var(--mm-accent-bg);
+  border: 1px solid var(--mm-border);
+  color: var(--mm-text);
+}
+.mm-token--dimmed {
+  filter: grayscale(1) opacity(0.5);
+}
+
+/* ── Боевая сетка ─────────────────────────────────────────────────────────
+ * Состояния клеток различаются ПАТТЕРНОМ/ОБВОДКОЙ, не только оттенком (§8.1):
+ *   move   — сплошная заливка
+ *   target — рамка-маркер + угловой прицел
+ *   zone   — диагональная штриховка (AoE)
+ *   active — двойная обводка
+ */
+.mm-grid {
+  display: grid;
+  user-select: none;
+  flex: 0 0 auto;
+  background: var(--mm-border-subtle);
+  gap: 1px;
+  padding: 1px;
+  border-radius: 4px;
+}
+.mm-cell {
+  box-sizing: border-box;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--mm-cell);
+  cursor: pointer;
+}
+.mm-cell--wall {
+  background: var(--mm-wall);
+  cursor: default;
+}
+.mm-cell--move {
+  background: var(--mm-hl-move-bg);
+  box-shadow: inset 0 0 0 1px var(--mm-hl-move);
+}
+.mm-cell--target {
+  box-shadow: inset 0 0 0 2px var(--mm-hl-target);
+}
+.mm-cell--target::before {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border: 1px dashed var(--mm-hl-target);
+  border-radius: 2px;
+  pointer-events: none;
+}
+.mm-cell--zone {
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(217, 83, 79, 0.28) 0,
+    rgba(217, 83, 79, 0.28) 3px,
+    transparent 3px,
+    transparent 7px
+  );
+}
+.mm-cell--active {
+  box-shadow: inset 0 0 0 2px var(--mm-hl-active);
+}
+.mm-cell--hover {
+  outline: 1px solid var(--mm-text-muted);
+  outline-offset: -1px;
+}
+
+/* ── Токен юнита: форма дублирует сторону (круг=свой, ромб-квадрат=враг) ── */
+.mm-unit {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.mm-unit__body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid var(--mm-border);
+  line-height: 1;
+}
+.mm-unit--player .mm-unit__body {
+  border-color: var(--mm-side-player);
+  background: var(--mm-side-player-bg);
+  border-radius: 50%;
+}
+.mm-unit--enemy .mm-unit__body {
+  border-color: var(--mm-side-enemy);
+  background: var(--mm-side-enemy-bg);
+  border-radius: 3px;
+}
+.mm-unit--downed {
+  filter: grayscale(1) opacity(0.55);
+}
+.mm-unit--downed::after {
+  content: '✕';
+  position: absolute;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--mm-text);
+  pointer-events: none;
+}
+
+/* Бейдж порядка хода — фикс-слот (готовим под атлас 5). */
+.mm-queue-badge {
+  position: absolute;
+  top: -3px;
+  left: -3px;
+  min-width: 13px;
+  height: 13px;
+  padding: 0 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  border-radius: 7px;
+  background: var(--mm-surface-raised);
+  border: 1px solid var(--mm-border);
+  color: var(--mm-text);
+}
+
+/* Превью урона/лечения над токеном (этап B1). */
+.mm-dmg {
+  position: absolute;
+  top: -7px;
+  right: -4px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.3;
+  padding: 0 3px;
+  border-radius: 3px;
+  pointer-events: none;
+  white-space: nowrap;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+.mm-dmg--hurt {
+  background: var(--mm-side-enemy);
+  color: #fff;
+}
+.mm-dmg--heal {
+  background: var(--mm-hp-player);
+  color: #fff;
+}
+.mm-dmg--kill {
+  background: var(--mm-text);
+  color: var(--mm-bg);
+}
+
+/* HP-полоса под токеном. */
+.mm-hp {
+  position: absolute;
+  bottom: 1px;
+  left: 3px;
+  right: 3px;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.55);
+  overflow: hidden;
+}
+.mm-hp__fill {
+  height: 100%;
+  border-radius: 2px;
+}
+
+/* ── Очередь хода (лента бейджей) ───────────────────────────────────────── */
+.mm-queue {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.mm-queue__item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px 2px 2px;
+  border-radius: 14px;
+  border: 1px solid var(--mm-border);
+  background: var(--mm-surface);
+  font-size: 12px;
+  opacity: 0.85;
+}
+.mm-queue__item--active {
+  border-color: var(--mm-hl-active);
+  background: var(--mm-surface-raised);
+  opacity: 1;
+}
+.mm-queue__item--downed {
+  filter: grayscale(1) opacity(0.5);
+}
+.mm-queue__ord {
+  min-width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 50%;
+  background: var(--mm-bg);
+  color: var(--mm-text-muted);
+}
+
+/* Панель действий — устойчивый блок фикс-размеров (готовим слоты под атлас 3). */
+.mm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.mm-action-btn {
+  position: relative;
+}
+.mm-cooldown {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 8px;
+  background: var(--mm-wall);
+  border: 1px solid var(--mm-border);
+  color: var(--mm-text-muted);
+}
+
+/* ── Memento Mori: оси силы и слоты модов ───────────────────────────────── */
+.mm-axis {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.mm-axis__icon {
+  font-size: 18px;
+  width: 26px;
+  text-align: center;
+  flex: 0 0 auto;
+}
+.mm-axis__name {
+  width: 120px;
+  flex: 0 0 auto;
+  font-size: 13px;
+  color: var(--mm-text);
+}
+.mm-axis__bar {
+  flex: 1 1 auto;
+  min-width: 120px;
+}
+.mm-axis__val {
+  width: 64px;
+  flex: 0 0 auto;
+  text-align: right;
+  font-size: 12px;
+  color: var(--mm-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Носитель прогресса (карта/предмет/пассив) с его слотами модов. */
+.mm-carrier {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--mm-border-subtle);
+}
+.mm-carrier:last-child {
+  border-bottom: none;
+}
+.mm-carrier__main {
+  flex: 1 1 160px;
+  min-width: 0;
+}
+.mm-carrier__name {
+  font-size: 13px;
+  color: var(--mm-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mm-carrier__meta {
+  font-size: 11px;
+  color: var(--mm-text-muted);
+}
+
+.mm-slots {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex: 0 0 auto;
+}
+.mm-slot {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  line-height: 1;
+}
+.mm-slot--filled {
+  border: 1.5px solid var(--mm-accent-border);
+  background: var(--mm-accent-bg);
+  cursor: help;
+}
+.mm-slot--empty {
+  border: 1.5px dashed var(--mm-border);
+  background: transparent;
+  color: var(--mm-text-muted);
+  font-size: 20px;
+}
+.mm-slot__badge {
+  position: absolute;
+  bottom: -5px;
+  right: -5px;
+  font-size: 9px;
+  font-weight: 700;
+  background: var(--mm-accent);
+  color: #fff;
+  border-radius: 6px;
+  padding: 0 3px;
+  line-height: 13px;
+  border: 1px solid var(--mm-bg);
+}
+.mm-slot__lm {
+  position: absolute;
+  top: -5px;
+  left: -5px;
+  font-size: 9px;
+  font-weight: 700;
+  background: var(--mm-surface-raised);
+  color: var(--mm-text-muted);
+  border: 1px solid var(--mm-border);
+  border-radius: 6px;
+  padding: 0 3px;
+  line-height: 12px;
+}

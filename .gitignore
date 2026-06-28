@@ -1,0 +1,14 @@
+node_modules
+dist
+dist-ssr
+*.local
+.DS_Store
+coverage
+playwright-report
+test-results
+.playwright-mcp
+.vite
+
+# Build cache / scratch
+tsconfig.tsbuildinfo
+__temp/
