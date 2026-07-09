@@ -2,6 +2,7 @@
 
 import { Button, Card, Col, Empty, Row, Space, Tag, Typography } from 'antd'
 import { useGame } from '../../state/store'
+import { canAfford } from '../../core/campaign'
 import { StatStrip } from '../components/StatStrip'
 import { UnitIcon } from '../components/UnitIcon'
 import { Portrait } from '../components/Portrait'
@@ -13,7 +14,7 @@ export function TavernTab() {
   const hire = useGame((s) => s.tavernHire)
   const refresh = useGame((s) => s.tavernRefresh)
 
-  const canAfford = (price: number) => campaign.gold >= price
+  const afford = (price: number) => canAfford(campaign, price)
 
   return (
     <Space orientation="vertical" style={{ width: '100%' }} size="middle">
@@ -72,7 +73,7 @@ export function TavernTab() {
                     <Button
                       type="primary"
                       block
-                      disabled={!canAfford(c.price)}
+                      disabled={!afford(c.price)}
                       onClick={() => hire(c.id)}
                     >
                       Нанять ({c.price} 💰)

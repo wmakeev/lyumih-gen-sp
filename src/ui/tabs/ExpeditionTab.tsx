@@ -2,6 +2,7 @@
 
 import { Alert, Button, Card, Checkbox, Col, Row, Select, Space, Tag, Typography } from 'antd'
 import { useGame } from '../../state/store'
+import { participatingSquadIds } from '../../core/campaign'
 import { UnitIcon } from '../components/UnitIcon'
 
 export function ExpeditionTab() {
@@ -17,8 +18,7 @@ export function ExpeditionTab() {
   const modes = [...registry.expeditions.values()]
   const mode = registry.expeditions.get(modeId) ?? modes[0]
 
-  const anyChecked = squadSelection.some(Boolean)
-  const participating = campaign.squad.filter((cid, i) => !!cid && (!anyChecked || squadSelection[i])).length
+  const participating = participatingSquadIds(campaign.squad, squadSelection).length
   const partyMin = mode?.partyMin ?? 1
   const canStart = !campaign.expedition && mode !== undefined && participating >= partyMin
 

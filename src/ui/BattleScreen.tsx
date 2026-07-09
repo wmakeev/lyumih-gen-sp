@@ -5,6 +5,7 @@ import { Button, Card, Space, Switch, Tag, Tooltip, Typography } from 'antd'
 import { useGame } from '../state/store'
 import { MathRng } from '../core/rng'
 import { activeUnit, isAlive, isDowned, unitById } from '../core/battle/queue'
+import { unitAt, unitHpPct, fieldSize } from '../core/battle/selectors'
 import { legalMoves, cardTargets, type BattleContext } from '../core/battle/engine'
 import type { BattleState, BattleUnit, Cell } from '../core/types/battle'
 import { previewAction, type ActionPreview } from './battle-preview'
@@ -93,7 +94,7 @@ export function BattleScreen() {
   if (preview) for (const t of preview.targets) previewByUnit.set(t.unitId, t)
 
   const onCellClick = (x: number, y: number) => {
-    const unit = battle.units.find((u) => u.x === x && u.y === y && (isAlive(u) || isDowned(u)))
+    const unit = unitAt(battle, x, y)
     const key = `${x},${y}`
     if (!playerTurn || !active) {
       if (unit && isAlive(unit)) selectBattleUnit(unit.id)
@@ -377,7 +378,8 @@ function BattleGrid({
   onCellClick: (x: number, y: number) => void
   onHover: (c: Cell | null) => void
 }) {
-  const { width, height, terrain } = battle.field
+  const { terrain } = battle.field
+  const { width, height } = fieldSize(battle)
   const isTargetMode = mode?.type === 'basic' || mode?.type === 'card'
   // Тайлы пола/стены из атласа `tiles` (фолбэк — цвет клетки из CSS, если лист
   // ещё не нарезан). Размеры одинаковы для всех клеток → считаем срез один раз.
@@ -389,7 +391,7 @@ function BattleGrid({
       const idx = y * width + x
       const wall = terrain[idx] === 'wall'
       const key = `${x},${y}`
-      const unit = battle.units.find((u) => u.x === x && u.y === y && (isAlive(u) || isDowned(u)))
+      const unit = unitAt(battle, x, y)
       const isActiveCell = unit && active && unit.id === active.id
       const hi = highlight.has(key)
       const inZone = preview?.zone.has(key) ?? false
@@ -440,7 +442,7 @@ function UnitWidget({
   dmg: ActionPreview['targets'][number] | undefined
 }) {
   const downed = isDowned(unit)
-  const hpPct = unit.maxHp > 0 ? Math.round((unit.hp / unit.maxHp) * 100) : 0
+  const hpPct = unitHpPct(unit)
   const bodySize = Math.round(CELL * 0.72)
   return (
     <div

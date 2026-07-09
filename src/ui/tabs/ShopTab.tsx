@@ -3,6 +3,7 @@
 import { Button, Card, Col, Divider, Empty, Row, Space, Tag, Typography } from 'antd'
 import { useGame } from '../../state/store'
 import { getConfig } from '../../core/config'
+import { canAfford } from '../../core/campaign'
 
 export function ShopTab() {
   useGame((s) => s.rev)
@@ -16,13 +17,13 @@ export function ShopTab() {
 
   const offers = campaign.shopOffers
   const refreshCost = getConfig().shop.refreshCost
-  const canAfford = (price: number) => campaign.gold >= price
+  const afford = (price: number) => canAfford(campaign, price)
 
   return (
     <Space orientation="vertical" style={{ width: '100%' }} size="middle">
       <Space>
         <Tag color="gold">💰 {campaign.gold}</Tag>
-        <Button onClick={() => refresh()} disabled={!canAfford(refreshCost)}>
+        <Button onClick={() => refresh()} disabled={!afford(refreshCost)}>
           Обновить ({refreshCost} 💰)
         </Button>
       </Space>
@@ -45,7 +46,7 @@ export function ShopTab() {
                       type="primary"
                       size="small"
                       block
-                      disabled={!canAfford(o.price)}
+                      disabled={!afford(o.price)}
                       onClick={() => buyItem(o.instance.id)}
                     >
                       Купить ({o.price} 💰)
@@ -65,7 +66,7 @@ export function ShopTab() {
               <Col xs={12} sm={8} md={6}>
                 <Card size="small" title={`📜 ${registry.cards.get(offers.card.instance.templateId)?.label ?? 'Умение'}`}>
                   <div>L{offers.card.instance.global_level}</div>
-                  <Button type="primary" size="small" block disabled={!canAfford(offers.card.price)} onClick={() => buyCard()}>
+                  <Button type="primary" size="small" block disabled={!afford(offers.card.price)} onClick={() => buyCard()}>
                     Купить ({offers.card.price} 💰)
                   </Button>
                 </Card>
@@ -75,7 +76,7 @@ export function ShopTab() {
               <Col xs={12} sm={8} md={6}>
                 <Card size="small" title={`🌀 ${registry.passives.get(offers.passive.instance.templateId)?.label ?? 'Пассив'}`}>
                   <div>L{offers.passive.instance.global_level}</div>
-                  <Button type="primary" size="small" block disabled={!canAfford(offers.passive.price)} onClick={() => buyPassive()}>
+                  <Button type="primary" size="small" block disabled={!afford(offers.passive.price)} onClick={() => buyPassive()}>
                     Купить ({offers.passive.price} 💰)
                   </Button>
                 </Card>

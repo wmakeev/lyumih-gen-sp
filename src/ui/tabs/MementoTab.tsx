@@ -32,6 +32,7 @@ import type { Character } from '../../core/types/character'
 import type { ModSlotState, ModGroup, ModTemplate } from '../../core/types/memento'
 import { UnitIcon } from '../components/UnitIcon'
 import { iconEmoji } from '../assets/icon-registry'
+import { pct } from '../format'
 
 const groupIcon = (g: ModGroup): string => iconEmoji(`mod_${g}`) ?? '📿'
 
@@ -458,10 +459,6 @@ function SlotWidget({
 }
 
 // — helpers —
-function pct(value: number, max: number): number {
-  if (max <= 0) return 0
-  return Math.min(100, Math.round((value / max) * 100))
-}
 function nextThreshold(level: number, ms: { firstThreshold: number; step: number }): number {
   const unlocked = unlockedSlotCount(level, ms)
   return milestoneThreshold(unlocked, ms)
