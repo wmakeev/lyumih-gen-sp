@@ -172,6 +172,27 @@
 - `MementoTab.tsx`: слоты стали интерактивны — клик пустого слота открывает `Modal` с оффером (3–4 мода, описания,
   кнопка «Выбрать»); клик занятого — `Popconfirm` на снятие. Во время похода — `Alert` + слоты заблокированы.
 
+### 🧩 Рефакторинг модульности (по `docs/modularity-review/2026-07-01`, 2026-07-09)
+
+Закрыты все 3 находки review (оркестратор + субагенты, по задаче на агента). Гейт после каждой зелёный.
+
+- **🔴 Critical — `resolveCardOutcome`.** Боевое правило исхода карты (сбор целей, дальность/LoS,
+  величина, множитель центра AoE, крит, применение card-мод-эффектов) было триплицировано в
+  `engine.ts`/`ui/battle-preview.ts`/`ai.ts`. Выделено в чистую `core/battle/outcome.ts::resolveCardOutcome`
+  → `CardOutcome` (без мутаций). `engine.useCard` применяет план, превью рендерит тот же outcome, AI
+  читает урон/дальность. `FixedRng`/`NO_CRIT`/`ALL_CRIT` перенесены в ядро. (+9 тестов → 108)
+- **🟠 Significant — `resolveVictory`.** Последовательность исхода победы (finalizeBattle → inter-battle /
+  finish-expedition + scenarioIndex+1 → shopOffers) вынесена из `store.finalizeVictory` в
+  `core/campaign/finalize.ts::resolveVictory` → `VictoryResult`. Стор сведён к делегированию + rev/persist.
+  Семантика (порядок, in-place мутации, дефолт золота) сохранена дословно. (+3 теста → 111)
+- **🟡 Minor — селекторы UI→ядро.** Тонкие чистые селекторы `core/battle/selectors.ts`
+  (`unitAt`/`unitHpPct`/`fieldSize`) и хелперы `core/campaign/selectors.ts` (`canAfford`/`participatingSquadIds`)
+  + UI-утилита `ui/format.ts` (`pct`). Устранён дубль `canAfford` (Shop/Tavern), прямые чтения сырых
+  боевых полей в `BattleScreen`, локальные `pct`/фильтр состава. Поведенчески нейтрально.
+
+Итог: **111 тестов ✓**, `tsc` чист, `vite build` ок. Терпимые дисбалансы (raceAffinity-обёртка,
+заглушка `migrate`) осознанно оставлены — низковолатильны.
+
 ## Открытые вопросы / допущения (решены дефолтами, отметить в docs)
 - Тай-брейк initiative → по id юнита.
 - LoS-алгоритм → супер-покрытие/Bresenham (определим в Этапе 2).
