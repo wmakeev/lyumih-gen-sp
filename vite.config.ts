@@ -3,6 +3,8 @@ import react from '@vitejs/plugin-react'
 import { fileURLToPath, URL } from 'node:url'
 
 export default defineConfig({
+  // GitHub Pages project-page: сайт отдаётся с /<repo>/. В dev остаётся '/'.
+  base: process.env.GITHUB_ACTIONS ? '/lyumih-gen-sp/' : '/',
   plugins: [react()],
   resolve: {
     alias: {

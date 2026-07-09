@@ -37,8 +37,12 @@ export function atlasSlice(atlasId: string, id: string, size: number): React.CSS
   const row = Math.floor(idx / def.cols)
   const scaleX = size / def.cellW
   const scaleY = size / def.cellH
+  // Манифест хранит src абсолютом от корня сайта (`/atlases/…`); под base
+  // (GitHub Pages project-page) Vite такие пути не переписывает → префиксуем
+  // BASE_URL (dev=`/`, prod=`/<repo>/`).
+  const url = `${import.meta.env.BASE_URL}${def.src.replace(/^\//, '')}`
   return {
-    backgroundImage: `url(${def.src})`,
+    backgroundImage: `url(${url})`,
     backgroundRepeat: 'no-repeat',
     backgroundPosition: `-${col * def.cellW * scaleX}px -${row * def.cellH * scaleY}px`,
     backgroundSize: `${def.cols * def.cellW * scaleX}px ${def.rows * def.cellH * scaleY}px`,
