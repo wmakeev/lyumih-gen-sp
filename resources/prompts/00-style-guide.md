@@ -1,8 +1,9 @@
 # Промпты генерации атласов Gen — общий гайд
 
 Эти промпты — для генерации **спрайт-атласов** в ChatGPT (GPT image / DALL·E).
-Источники: `game-deep-research/report.md` (§3 арт-стиль, §5 упаковка), `redesign-plan.md`
-(этап E), и **главный источник истины — `src/ui/assets/atlas-manifest.json`** (заморожённая
+Источники: `docs/research/report.md` (§3 арт-стиль, §5 упаковка), `docs/archive/redesign-plan.md`
+(этап E), `docs/assets.md` (конвейер и грабли), и **главный источник истины —
+`src/ui/assets/atlas-manifest.json`** (заморожённая
 вёрстка: id, порядок ячеек, размеры).
 
 ## Что генерируем (4 листа — ровно как в манифесте)

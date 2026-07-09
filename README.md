@@ -1,6 +1,8 @@
 # Gen — клон тактической RPG
 
-Реализация браузерной тактической RPG **Gen** по спецификации `gen_spec_for_claude.md`. Пошаговые бои на квадратной сетке, система прогресса **Memento Mori**, экспедиции, магазин/таверна, экипировка и моды.
+Реализация браузерной тактической RPG **Gen** по спецификации [`docs/spec.md`](docs/spec.md). Пошаговые бои на квадратной сетке, система прогресса **Memento Mori**, экспедиции, магазин/таверна, экипировка и моды.
+
+> Продолжаете работу над проектом? Начните с [`AGENTS.md`](AGENTS.md).
 
 **Стек:** React 19 + Ant Design 6 + Zustand 5 + Vite 6 + TypeScript + Vitest 3.
 
@@ -10,8 +12,9 @@
 npm install
 npm run dev        # http://localhost:5173
 npm run build      # production-сборка (tsc -b + vite build)
-npm test           # 75 unit/интеграционных тестов
+npm test           # 111 unit/интеграционных тестов
 npm run typecheck  # tsc --noEmit
+npm run atlases    # пересборка спрайт-атласов (см. docs/assets.md)
 ```
 
 ## Профили баланса
@@ -42,7 +45,7 @@ src/state/store.ts     Zustand: единый стейт кампании + UI-ф
 src/ui/                React + AntD: HubScreen (6 вкладок), BattleScreen, InterBattleScreen
 ```
 
-**Документы:** `docs/balance.md` (балансовая модель боя — вне нормативного scope §0), `PROGRESS.md` (журнал реализации по этапам).
+**Документы:** [`AGENTS.md`](AGENTS.md) (онбординг), [`docs/architecture.md`](docs/architecture.md) (слои + инварианты), [`docs/balance.md`](docs/balance.md) (балансовая модель боя — вне scope §0), [`docs/assets.md`](docs/assets.md) (атласы), [`docs/spec.md`](docs/spec.md) (нормативная спека), [`PROGRESS.md`](PROGRESS.md) (журнал реализации). Историческое — в `docs/archive/`, исследование по редизайну — в `docs/research/`.
 
 ## Что покрыто
 
