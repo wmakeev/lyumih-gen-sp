@@ -36,12 +36,19 @@ const OUT_DIR = resolve(ROOT, 'public/atlases')
 //         Нужны для tiles: 7 фигур разложены неравномерно (не по 8-кол. сетке) и
 //         часть полые (рамка/уголки) — авто-сетка их режет. Боксы измерены детекцией
 //         контента по 04-tiles.png; ПЕРЕИЗМЕРИТЬ при перегенерации листа тайлов.
+// rowLines — фактические y-границы рядов листа (длина rows+1), если сетка НЕ
+//         равномерная. AI-лист может печатать ряды неравномерно/со сдвигом
+//         (portraits: линии на 0/272/523/766/1023, а не 256/512/768) — тогда
+//         линия ряда течёт в окно и режется низ фигуры. С rowLines ряды берутся
+//         по этим линиям (колонки остаются равномерными), клип строк — rowInset.
+// rowInset — px, срезаемые сверху/снизу от линии ряда (убирают саму линию сетки).
 const T = { top: 40, height: 250 } // общая y-полоса ряда тайлов
 const SOURCES = {
   units:     { file: '01-units-tokens.png', inset: 10, pad: 12, trim: true, fit: 'contain' },
   icons:     { file: '02-icons.png',        inset: 12, pad: 14, trim: true, fit: 'contain' },
   meta:      { file: '03-meta.png',         inset: 14, pad: 10, trim: true, fit: 'contain' },
-  portraits: { file: '05-portraits.png',    inset: 10, pad: 18, trim: true, fit: 'contain' },
+  portraits: { file: '05-portraits.png',    inset: 10, pad: 18, trim: true, fit: 'contain',
+               rowLines: [0, 272, 523, 766, 1023], rowInset: 4 },
   tiles: {
     file: '04-tiles.png', trim: true, fit: 'fill', pad: 0,
     srcBoxes: [
@@ -121,9 +128,13 @@ async function processAtlas(name, def) {
     } else {
       const col = idx % cols, row = Math.floor(idx / cols)
       const cx0 = bound(col, W, cols), cx1 = bound(col + 1, W, cols)
-      const cy0 = bound(row, H, rows), cy1 = bound(row + 1, H, rows)
-      left = cx0 + cfg.inset; top = cy0 + cfg.inset
-      cw = cx1 - cx0 - 2 * cfg.inset; ch = cy1 - cy0 - 2 * cfg.inset
+      // Ряды: по фактическим линиям сетки листа (rowLines), если заданы, иначе
+      // равномерная сетка манифеста. rowInset клипает саму линию ряда.
+      const cy0 = cfg.rowLines ? cfg.rowLines[row] : bound(row, H, rows)
+      const cy1 = cfg.rowLines ? cfg.rowLines[row + 1] : bound(row + 1, H, rows)
+      const rIn = cfg.rowLines ? cfg.rowInset : cfg.inset
+      left = cx0 + cfg.inset; top = cy0 + rIn
+      cw = cx1 - cx0 - 2 * cfg.inset; ch = cy1 - cy0 - 2 * rIn
     }
     // Клампим окно в границы листа.
     cw = Math.min(cw, W - left); ch = Math.min(ch, H - top)
