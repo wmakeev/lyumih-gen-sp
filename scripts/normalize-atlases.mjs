@@ -44,7 +44,36 @@ const OUT_DIR = resolve(ROOT, 'public/atlases')
 // rowInset — px, срезаемые сверху/снизу от линии ряда (убирают саму линию сетки).
 const T = { top: 40, height: 250 } // общая y-полоса ряда тайлов
 const SOURCES = {
-  units:     { file: '01-units-tokens.png', inset: 10, pad: 12, trim: true, fit: 'contain' },
+  // units — лист неравномерен по ОБЕИМ осям: AI разложил токены не по сетке 6×4
+  // манифеста (равномерное окно срезало ноги/кромки фигур — это и был баг «нарезка
+  // на поле неправильная»). Заданы явные srcBoxes = пересечение content-полос по X и
+  // по Y (полосы разделены зелёными коридорами ≥12px, соседи не попадают). Боксы чуть
+  // расширены (+6px в зелёный коридор) под антиалиас-кромку — trim их всё равно
+  // срежет. ПЕРЕИЗМЕРИТЬ при перегенерации листа (детекция content-полос по хромакею).
+  units: {
+    file: '01-units-tokens.png', pad: 12, trim: true, fit: 'contain',
+    srcBoxes: [
+      // ряд 1 (y 43–281): warrior, mage, ranger, healer, rogue, paladin
+      { left: 36,   top: 43,  width: 222, height: 239 },
+      { left: 260,  top: 43,  width: 263, height: 239 },
+      { left: 523,  top: 43,  width: 233, height: 239 },
+      { left: 778,  top: 43,  width: 239, height: 239 },
+      { left: 1038, top: 43,  width: 197, height: 239 },
+      { left: 1249, top: 43,  width: 243, height: 239 },
+      // ряд 2 (y 312–535): warlock, berserker, beast, undead, human, orc
+      { left: 36,   top: 312, width: 222, height: 224 },
+      { left: 260,  top: 312, width: 263, height: 224 },
+      { left: 523,  top: 312, width: 233, height: 224 },
+      { left: 778,  top: 312, width: 239, height: 224 },
+      { left: 1038, top: 312, width: 197, height: 224 },
+      { left: 1249, top: 312, width: 243, height: 224 },
+      // ряд 3 (y 562–780): elf, specter, construct, demon
+      { left: 36,   top: 562, width: 222, height: 219 },
+      { left: 260,  top: 562, width: 263, height: 219 },
+      { left: 523,  top: 562, width: 233, height: 219 },
+      { left: 778,  top: 562, width: 239, height: 219 },
+    ],
+  },
   icons:     { file: '02-icons.png',        inset: 12, pad: 14, trim: true, fit: 'contain' },
   meta:      { file: '03-meta.png',         inset: 14, pad: 10, trim: true, fit: 'contain' },
   portraits: { file: '05-portraits.png',    inset: 10, pad: 18, trim: true, fit: 'contain',
