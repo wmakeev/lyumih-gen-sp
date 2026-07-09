@@ -33,7 +33,7 @@ import {
   activeUnit,
   aliveBySide,
 } from './queue'
-import { resolveCardAmount } from './damage'
+import { resolveCardOutcome } from './outcome'
 import {
   BOSS,
   antiHealActiveAgainst,
@@ -370,77 +370,48 @@ export function useCard(
   const tpl = ctx.cards.get(card.templateId)
   if (!tpl) return { ok: false, reason: 'нет шаблона' }
 
-  const mods = carrierModsOf(card, ctx)
-  const effects = collectModEffects(mods)
-  const range = tpl.maxRange + effects.rangeAdd
-
-  const levelForCalc = card.level + card.damageLevelBonus
-
-  // Определяем основную цель
+  // Определяем точку прицеливания по выбранной цели/клетке.
   let primary: BattleUnit | undefined
   if (target.unitId) primary = unitById(state, target.unitId)
   else if (target.cell) primary = unitAtAlive(state, target.cell.x, target.cell.y)
-
-  const isAoe = tpl.kind === 'aoe'
-  const isResurrect = tpl.kind === 'resurrect'
-  const isHealKind = tpl.kind === 'heal' || tpl.kind === 'regen'
-  const isBuff = tpl.kind === 'buff'
-  const isDebuff = tpl.kind === 'debuff'
-  const isDot = tpl.kind === 'dot'
-
-  // Валидация дистанции по выбранной точке
-  const aim: Cell | undefined = target.cell ?? (primary ? { x: primary.x, y: primary.y } : undefined)
+  const aim: Cell | undefined =
+    target.cell ?? (primary ? { x: primary.x, y: primary.y } : undefined)
   if (!aim) return { ok: false, reason: 'нет цели' }
-  if (manhattan(caster, aim) > range) return { ok: false, reason: 'вне дальности' }
-  if (range > 1 && !hasLineOfSight(state.field, caster, aim))
-    return { ok: false, reason: 'нет линии видимости' }
 
-  // Сбор целей
-  let affected: BattleUnit[] = []
-  if (isAoe) {
-    const radius = (tpl.aoeRadius ?? 1) + effects.aoeSizeAdd
-    affected = state.units.filter(
-      (u) => isAlive(u) && u.side !== caster.side && manhattan(aim, u) <= radius,
-    )
-  } else if (isResurrect) {
-    if (primary && primary.side === caster.side && isDowned(primary)) affected = [primary]
-  } else if (isHealKind || isBuff) {
-    if (primary && primary.side === caster.side && isAlive(primary)) affected = [primary]
-  } else {
-    if (primary && primary.side !== caster.side && isAlive(primary)) affected = [primary]
-  }
-
-  if (affected.length === 0 && !isResurrect)
+  // Единый источник боевого правила: план исхода (без мутаций).
+  const outcome = resolveCardOutcome(state, caster, card, aim, ctx)
+  if (!outcome) return { ok: false, reason: 'нет шаблона' }
+  if (!outcome.distanceOk) return { ok: false, reason: 'вне дальности' }
+  if (!outcome.losOk) return { ok: false, reason: 'нет линии видимости' }
+  if (outcome.targets.length === 0 && !outcome.isResurrect)
     return { ok: false, reason: 'нет целей' }
 
-  // Применение эффекта
-  for (const tgt of affected) {
-    if (isResurrect) {
-      const amount = resolveCardAmount(tpl, levelForCalc, caster, null, mods, ctx.rng)
-      tgt.hp = Math.min(tgt.maxHp, Math.max(1, amount.amount))
+  const { effects } = outcome
+  const tag = elementTag(tpl.tags)
+
+  // Применение готового плана к состоянию (движок только мутирует).
+  for (const t of outcome.targets) {
+    const tgt = unitById(state, t.unitId)
+    if (!tgt) continue
+    if (t.kind === 'resurrect') {
+      tgt.hp = Math.min(tgt.maxHp, Math.max(1, t.hits[0]?.amount ?? 1))
       log(state, 'heal', `${caster.displayName} воскрешает ${tgt.displayName}`)
-      continue
-    }
-    const res = resolveCardAmount(tpl, levelForCalc, caster, tgt, mods, ctx.rng)
-    if (res.isHeal || isHealKind) {
-      healUnit(state, tgt, res.amount, caster.displayName)
-    } else if (isBuff || isDot || isDebuff) {
-      applyStatus(state, caster, tgt, tpl, levelForCalc)
-      if (isDot && tpl.status?.tickAmount) {
-        // первичный урон не наносим — только статус с тиком
-      }
+    } else if (t.kind === 'heal') {
+      healUnit(state, tgt, t.hits[0]?.amount ?? 0, caster.displayName)
+    } else if (t.kind === 'status') {
+      applyStatus(state, caster, tgt, tpl, outcome.level)
     } else {
-      // урон + центр AoE + крит + лайфстил
-      let dmg = res.amount
-      if (isAoe && manhattan(aim, tgt) === 0) dmg = Math.round(dmg * effects.aoeCenterDamageMult)
-      if (res.isCrit) log(state, 'crit', `Крит по ${tgt.displayName}!`)
-      const tag = elementTag(tpl.tags)
-      let dealt = applyDamage(state, tgt, dmg, tag, caster.displayName, ctx)
-      // доп. удары (proc_extra_hit)
-      for (let h = 0; h < res.extraHits && isAlive(tgt); h++) {
-        const extra = resolveCardAmount(tpl, levelForCalc, caster, tgt, mods, ctx.rng)
-        log(state, 'mod_proc', `Доп. удар по ${tgt.displayName}`)
-        dealt += applyDamage(state, tgt, extra.amount, tag, caster.displayName, ctx)
+      // урон: основной удар (+центр AoE) и доп. удары уже рассчитаны в плане
+      let dealt = 0
+      for (let i = 0; i < t.hits.length; i++) {
+        if (!isAlive(tgt)) break
+        const hit = t.hits[i]!
+        if (i === 0) {
+          if (hit.isCrit) log(state, 'crit', `Крит по ${tgt.displayName}!`)
+        } else {
+          log(state, 'mod_proc', `Доп. удар по ${tgt.displayName}`)
+        }
+        dealt += applyDamage(state, tgt, hit.amount, tag, caster.displayName, ctx)
       }
       // lifesteal: моды носителя + боссовый вампиризм (§13.4)
       const lifestealPct =
@@ -453,10 +424,14 @@ export function useCard(
     }
   }
 
-  // self_heal_on_use
+  // self_heal_on_use (мод-эффект исхода): база рассчитана в плане.
   if (effects.selfHealOnUsePct > 0) {
-    const base = resolveCardAmount(tpl, levelForCalc, caster, null, mods, ctx.rng)
-    healUnit(state, caster, (base.amount * effects.selfHealOnUsePct) / 100, `${caster.displayName} (самолечение)`)
+    healUnit(
+      state,
+      caster,
+      (outcome.selfHealBaseAmount * effects.selfHealOnUsePct) / 100,
+      `${caster.displayName} (самолечение)`,
+    )
   }
 
   // cooldown и L-прогресс носителя (§16.3 / §7.4)

@@ -6,15 +6,9 @@
  */
 
 import type { BattleState, BattleUnit, BattleCard, Cell } from '../types/battle'
-import { manhattan, hasLineOfSight, reachableCells } from './geometry'
+import { manhattan, reachableCells } from './geometry'
 import { isAlive, unitById, aliveBySide } from './queue'
-import { baseCardAmount } from './damage'
-import {
-  collectModEffects,
-  resolveCarrierMods,
-  applyDamageMult,
-} from '../memento/mods'
-import { DAMAGING_KINDS } from '../types/cards'
+import { resolveCardOutcome, NO_CRIT } from './outcome'
 import { applyMove, basicAttack, useCard, endTurn, type BattleContext } from './engine'
 
 export type BattleAction =
@@ -37,17 +31,25 @@ function nearestEnemy(state: BattleState, unit: BattleUnit): BattleUnit | undefi
   return best
 }
 
-/** Оценка урона карты без крита/проков (для выбора AI). */
+/**
+ * Оценка урона карты по цели без крита/проков (для выбора AI). Читает величину
+ * из единого резолвера (NO_CRIT не потребляет боевой rng — планирование чистое).
+ */
 function estimateCardDamage(
+  state: BattleState,
   card: BattleCard,
   caster: BattleUnit,
+  target: BattleUnit,
   ctx: BattleContext,
 ): number {
-  const tpl = ctx.cards.get(card.templateId)
-  if (!tpl || !DAMAGING_KINDS.has(tpl.kind)) return 0
-  const mods = collectModEffects(resolveCarrierMods(card.modSlots, ctx.mods))
-  const base = baseCardAmount(tpl, card.level + card.damageLevelBonus, caster)
-  return applyDamageMult(base, mods)
+  const outcome = resolveCardOutcome(state, caster, card, { x: target.x, y: target.y }, {
+    ...ctx,
+    rng: NO_CRIT,
+  })
+  if (!outcome) return 0
+  const ot = outcome.targets.find((t) => t.unitId === target.id)
+  if (!ot || ot.kind !== 'damage') return 0
+  return ot.hits.reduce((sum, h) => sum + h.amount, 0)
 }
 
 function cardCanReach(
@@ -57,13 +59,11 @@ function cardCanReach(
   target: BattleUnit,
   ctx: BattleContext,
 ): boolean {
-  const tpl = ctx.cards.get(card.templateId)
-  if (!tpl) return false
-  const mods = collectModEffects(resolveCarrierMods(card.modSlots, ctx.mods))
-  const range = tpl.maxRange + mods.rangeAdd
-  if (manhattan(caster, target) > range) return false
-  if (range > 1 && !hasLineOfSight(state.field, caster, target)) return false
-  return true
+  const outcome = resolveCardOutcome(state, caster, card, { x: target.x, y: target.y }, {
+    ...ctx,
+    rng: NO_CRIT,
+  })
+  return outcome?.inRange ?? false
 }
 
 /** Greedy-шаг к цели: достижимая клетка с минимальным манхэттеном до target. */
@@ -110,7 +110,10 @@ export function planAction(
 
   // Кандидаты атакующих карт, достающих цель
   const attackers = ready.filter(
-    (c) => !c.isBasic && estimateCardDamage(c, unit, ctx) > 0 && cardCanReach(state, unit, c, target, ctx),
+    (c) =>
+      !c.isBasic &&
+      estimateCardDamage(state, c, unit, target, ctx) > 0 &&
+      cardCanReach(state, unit, c, target, ctx),
   )
 
   if (mode === 'enemy' && unit.skillPriorities && unit.skillPriorities.length > 0) {
@@ -123,8 +126,8 @@ export function planAction(
   if (attackers.length > 0) {
     // приоритет добивания, затем максимальный урон
     attackers.sort((a, b) => {
-      const da = estimateCardDamage(a, unit, ctx)
-      const db = estimateCardDamage(b, unit, ctx)
+      const da = estimateCardDamage(state, a, unit, target, ctx)
+      const db = estimateCardDamage(state, b, unit, target, ctx)
       const killA = da >= target.hp ? 1 : 0
       const killB = db >= target.hp ? 1 : 0
       if (killA !== killB) return killB - killA
