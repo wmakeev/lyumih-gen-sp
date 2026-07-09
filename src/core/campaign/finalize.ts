@@ -12,7 +12,7 @@
 
 import type { Rng } from '../rng'
 import type { GameConfig } from '../config'
-import type { CampaignState, PendingHubNotice } from '../types/campaign'
+import type { CampaignState, PendingHubNotice, RunPhase } from '../types/campaign'
 import type { Character } from '../types/character'
 import type { ContentRegistry } from '../types/content'
 import type { BattleState } from '../types/battle'
@@ -30,6 +30,13 @@ import {
 import { syncModSlotsForLevel } from '../memento/slots'
 import { createCardInstance, createPassiveInstance } from './instances'
 import { luckyFlags, offerCountFor, aggregateSquadMeta } from './specs'
+import {
+  currentScenario,
+  hasNextBattle,
+  toInterBattle,
+  finishExpedition,
+} from './expedition'
+import { generateShopOffer } from './shop'
 
 function charById(c: CampaignState, id: string): Character | undefined {
   return c.characters.find((ch) => ch.id === id)
@@ -268,6 +275,64 @@ export function finalizeBattle(
   }
 
   return { notice, deaths }
+}
+
+export interface VictoryResult {
+  /** Нотис для хаба (дроп/двойной дроп) — уже записан в campaign.pendingHubNotice. */
+  notice: PendingHubNotice | null
+  /** Число павших союзников (death-rolls). */
+  deaths: number
+  /** Итоговая фаза кампании после разрешения (hub / inter_battle / …). */
+  phase: RunPhase
+  /** Вернулись ли в хаб (цепочка боёв завершена) — тогда обновлён shopOffers. */
+  returnedToHub: boolean
+}
+
+/**
+ * Полный поток исхода ПОБЕДЫ (§16.6–16.7 + §12.3): финализация боя, ветвление
+ * жизненного цикла кампании и обновление хаба. Порядок шагов критичен и живёт
+ * здесь, в ядре, а не в UI-слое:
+ *   1. finalizeBattle (награды/броски) → pendingHubNotice.
+ *   2. При victory: есть следующий бой → inter_battle; иначе finishExpedition
+ *      + scenarioIndex += 1 (инкремент только на завершении всей цепочки).
+ *   3. При возврате в хаб — перегенерация shopOffers.
+ * Мутирует `campaign` на месте (как и вызываемые функции ядра) и возвращает
+ * сводку для стора. `goldReward` по умолчанию берётся из текущего сценария.
+ */
+export function resolveVictory(
+  campaign: CampaignState,
+  registry: ContentRegistry,
+  config: GameConfig,
+  rng: Rng,
+  goldReward?: number,
+): VictoryResult {
+  const battle = campaign.battle
+  if (!battle) {
+    return { notice: null, deaths: 0, phase: campaign.phase, returnedToHub: false }
+  }
+
+  const gold = goldReward ?? currentScenario(campaign, registry)?.goldReward ?? 50
+  const result = finalizeBattle(campaign, registry, config, rng, gold)
+  campaign.pendingHubNotice = result.notice
+
+  // следующий бой или финиш цепочки
+  if (battle.phase === 'victory') {
+    if (hasNextBattle(campaign)) {
+      toInterBattle(campaign)
+    } else {
+      finishExpedition(campaign)
+      campaign.scenarioIndex += 1
+    }
+  }
+
+  // обновим магазин при возврате в хаб
+  let returnedToHub = false
+  if (campaign.phase === 'hub' && !campaign.expedition) {
+    campaign.shopOffers = generateShopOffer(registry, config, rng)
+    returnedToHub = true
+  }
+
+  return { notice: result.notice, deaths: result.deaths, phase: campaign.phase, returnedToHub }
 }
 
 /**

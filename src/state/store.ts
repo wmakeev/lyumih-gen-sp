@@ -20,13 +20,9 @@ import {
   startExpedition as coreStart,
   retryCurrentBattle,
   abandonBattle,
-  toInterBattle,
   interBattleReviveAll,
   advanceToNextBattle,
-  finishExpedition,
-  hasNextBattle,
-  currentScenario,
-  finalizeBattle,
+  resolveVictory,
   finalizeDefeat,
   hireFromTavern,
   refreshTavern,
@@ -35,7 +31,6 @@ import {
   buyPassive,
   refreshShop,
   sellChestItem,
-  generateShopOffer,
   bindChestCard,
   bindChestPassive,
   equipItem,
@@ -356,23 +351,9 @@ export const useGame = create<StoreState>((set, get) => {
     finalizeVictory: () => {
       const c = get().campaign
       if (!c.battle) return
-      const scenario = currentScenario(c, registry)
-      const gold = scenario?.goldReward ?? 50
-      const result = finalizeBattle(c, registry, getConfig(), rng, gold)
-      c.pendingHubNotice = result.notice
-      // следующий бой или финиш
-      if (c.battle.phase === 'victory') {
-        if (hasNextBattle(c)) {
-          toInterBattle(c)
-        } else {
-          finishExpedition(c)
-          c.scenarioIndex += 1
-        }
-      }
-      // обновим магазин/таверну при возврате в хаб
-      if (c.phase === 'hub' && !c.expedition) {
-        c.shopOffers = generateShopOffer(registry, getConfig(), rng)
-      }
+      // Весь поток исхода победы (finalize → inter-battle/finish + scenarioIndex →
+      // обновление магазина) живёт в ядре (resolveVictory). Стор лишь rev/persist.
+      resolveVictory(c, registry, getConfig(), rng)
       set((s) => ({ rev: s.rev + 1 }))
       persist(c)
     },
